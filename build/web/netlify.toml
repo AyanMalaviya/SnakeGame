@@ -3,3 +3,9 @@
   [headers.values]
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "require-corp"
+
+[[redirects]]
+  from = "/cdn/*"
+  to = "https://pygame-web.github.io/cdn/:splat"
+  status = 200
+  force = true
