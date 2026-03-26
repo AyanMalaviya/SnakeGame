@@ -1,0 +1,27 @@
+# Virtual environment -- never push this (100MB+)
+venv/
+.venv/
+env/
+
+# Pygbag build output -- GitHub Actions will regenerate this
+build/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# VS Code settings
+.vscode/
+
+# Pygame cache
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
