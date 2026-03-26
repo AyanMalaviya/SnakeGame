@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Linked List Snake</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #181c24;
+      font-family: 'Consolas', 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(60,210,60,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(60,210,60,0.04) 1px, transparent 1px);
+      background-size: 30px 30px;
+      animation: gridMove 8s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes gridMove {
+      from { background-position: 0 0; }
+      to   { background-position: 30px 30px; }
+    }
+
+    /* ---- LANDING PAGE (shown before game loads) ---- */
+    #landing {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      background: #181c24;
+      transition: opacity 0.6s ease;
+    }
+    #landing.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .logo {
+      font-size: clamp(28px, 6vw, 56px);
+      font-weight: bold;
+      color: #3cd23c;
+      letter-spacing: 4px;
+      text-shadow: 0 0 30px rgba(60,210,60,0.6), 0 0 60px rgba(60,210,60,0.3);
+      margin-bottom: 8px;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { text-shadow: 0 0 30px rgba(60,210,60,0.6); }
+      50%       { text-shadow: 0 0 60px rgba(60,210,60,1), 0 0 100px rgba(60,210,60,0.5); }
+    }
+
+    .subtitle {
+      color: #5a6a7a;
+      font-size: clamp(11px, 2vw, 14px);
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+
+    /* Snake animation on landing */
+    .snake-preview {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 48px;
+      animation: snakeWiggle 1s ease-in-out infinite alternate;
+    }
+    @keyframes snakeWiggle {
+      from { transform: translateY(-4px); }
+      to   { transform: translateY(4px); }
+    }
+    .seg {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: #3cd23c;
+    }
+    .seg:first-child {
+      background: #60d260;
+      border-radius: 8px;
+      position: relative;
+    }
+    .seg:first-child::before,
+    .seg:first-child::after {
+      content: '';
+      position: absolute;
+      width: 5px; height: 5px;
+      background: #0a0a0a;
+      border-radius: 50%;
+      top: 4px;
+    }
+    .seg:first-child::before { right: 3px; }
+    .seg:first-child::after  { right: 3px; top: 13px; }
+    .seg:last-child {
+      clip-path: polygon(0 25%, 75% 10%, 100% 50%, 75% 90%, 0 75%);
+      border-radius: 0;
+    }
+
+    /* Loading bar */
+    .load-wrap {
+      width: clamp(240px, 40vw, 380px);
+      margin-bottom: 20px;
+    }
+    .load-label {
+      color: #3a4a5a;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .load-track {
+      width: 100%;
+      height: 6px;
+      background: #1e2530;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid #2a3540;
+    }
+    .load-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1a8a1a, #3cd23c, #6aff6a);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(60,210,60,0.5);
+    }
+
+    /* Play button */
+    #play-btn {
+      display: none;
+      padding: 14px 48px;
+      background: transparent;
+      border: 2px solid #3cd23c;
+      color: #3cd23c;
+      font-family: 'Consolas', monospace;
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      cursor: pointer;
+      border-radius: 6px;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      animation: borderPulse 2s ease-in-out infinite;
+      margin-top: 12px;
+    }
+    @keyframes borderPulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(60,210,60,0.3); }
+      50%       { box-shadow: 0 0 28px rgba(60,210,60,0.7), inset 0 0 12px rgba(60,210,60,0.1); }
+    }
+    #play-btn:hover {
+      background: rgba(60,210,60,0.12);
+      transform: scale(1.04);
+    }
+    #play-btn:active { transform: scale(0.98); }
+
+    .tip {
+      color: #2a3a4a;
+      font-size: 11px;
+      letter-spacing: 2px;
+      margin-top: 32px;
+    }
+
+    /* ---- GAME CANVAS WRAPPER ---- */
+    #game-wrap {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.6s ease 0.2s;
+    }
+    #game-wrap.visible { opacity: 1; }
+
+    canvas {
+      display: block;
+      width: 100vw !important;
+      height: 100vh !important;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Landing overlay -->
+  <div id="landing">
+    <div class="logo">LINKED LIST SNAKE</div>
+    <div class="subtitle">Data Structures &amp; Arcade</div>
+
+    <!-- Decorative snake -->
+    <div class="snake-preview">
+      <div class="seg"></div>
+      <div class="seg"></div>
+      <div class="seg"></div>
+      <div class="seg"></div>
+      <div class="seg"></div>
+      <div class="seg"></div>
+      <div class="seg"></div>
+    </div>
+
+    <div class="load-wrap">
+      <div class="load-label">Loading WebAssembly Engine</div>
+      <div class="load-track"><div class="load-bar" id="load-bar"></div></div>
+    </div>
+
+    <button id="play-btn" onclick="startGame()">&#9654; &nbsp; PLAY</button>
+    <div class="tip" id="tip">Initializing Python runtime...</div>
+  </div>
+
+  <!-- Game canvas -->
+  <div id="game-wrap">
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+
+  <script>
+    // ---- Fake progress bar that advances as pygbag loads ----
+    let progress = 0;
+    const bar  = document.getElementById('load-bar');
+    const tip  = document.getElementById('tip');
+    const tips = [
+      'Loading Python 3.14 runtime...',
+      'Compiling WebAssembly modules...',
+      'Importing pygame-ce...',
+      'Building sprite textures...',
+      'Linking doubly linked list...',
+      'Ready to play!',
+    ];
+    let tipIdx = 0;
+
+    const ticker = setInterval(() => {
+      const speed = progress < 60 ? 1.2 : progress < 85 ? 0.5 : 0.1;
+      progress = Math.min(progress + speed, 95);
+      bar.style.width = progress + '%';
+      const newTip = Math.floor((progress / 100) * (tips.length - 1));
+      if (newTip !== tipIdx) { tipIdx = newTip; tip.textContent = tips[tipIdx]; }
+    }, 80);
+
+    // Called by pygbag when the WASM module is fully ready
+    function gameReady() {
+      clearInterval(ticker);
+      bar.style.width = '100%';
+      tip.textContent = tips[tips.length - 1];
+      setTimeout(() => {
+        document.getElementById('play-btn').style.display = 'block';
+      }, 400);
+    }
+
+    function startGame() {
+      document.getElementById('landing').classList.add('hidden');
+      document.getElementById('game-wrap').classList.add('visible');
+      // Tell canvas to go fullscreen
+      const c = document.getElementById('canvas');
+      if (c.requestFullscreen) c.requestFullscreen();
+    }
+
+    // ---- Pygbag bootstrap (do not rename these variables) ----
+    var _FS, canvas = document.getElementById('canvas');
+
+    // Intercept pygbag's ready signal
+    const _origDefine = window.define;
+    window.__pygbag_ready = gameReady;
+  </script>
+
+  <!--
+    Pygbag injects its own <script> tags below this line when building.
+    Do NOT remove the line below — pygbag uses it as an injection marker.
+  -->
+  <!-- PYGBAG_SCRIPTS -->
+
+</body>
+</html>
