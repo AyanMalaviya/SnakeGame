@@ -3,9 +3,6 @@ venv/
 .venv/
 env/
 
-# Pygbag build output -- GitHub Actions will regenerate this
-build/
-
 # Python cache
 __pycache__/
 *.py[cod]
