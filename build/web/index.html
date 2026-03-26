@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Linked List Snake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Hizzz Snake</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -18,7 +18,6 @@
       overflow: hidden;
     }
 
-    /* Animated background grid */
     body::before {
       content: '';
       position: fixed;
@@ -36,7 +35,6 @@
       to   { background-position: 30px 30px; }
     }
 
-    /* ---- LANDING PAGE (shown before game loads) ---- */
     #landing {
       position: fixed;
       inset: 0;
@@ -47,6 +45,7 @@
       z-index: 100;
       background: #181c24;
       transition: opacity 0.6s ease;
+      padding: 20px;
     }
     #landing.hidden {
       opacity: 0;
@@ -54,68 +53,105 @@
     }
 
     .logo {
-      font-size: clamp(28px, 6vw, 56px);
+      font-size: clamp(36px, 8vw, 72px);
       font-weight: bold;
       color: #3cd23c;
-      letter-spacing: 4px;
+      letter-spacing: 6px;
       text-shadow: 0 0 30px rgba(60,210,60,0.6), 0 0 60px rgba(60,210,60,0.3);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       animation: pulse 2.5s ease-in-out infinite;
     }
     @keyframes pulse {
-      0%, 100% { text-shadow: 0 0 30px rgba(60,210,60,0.6); }
+      0%, 100% { text-shadow: 0 0 30px rgba(60,210,60,0.4); }
       50%       { text-shadow: 0 0 60px rgba(60,210,60,1), 0 0 100px rgba(60,210,60,0.5); }
     }
 
-    .subtitle {
-      color: #5a6a7a;
-      font-size: clamp(11px, 2vw, 14px);
-      letter-spacing: 6px;
+    .tagline {
+      color: #4a6a4a;
+      font-size: clamp(10px, 2vw, 13px);
+      letter-spacing: 5px;
       text-transform: uppercase;
-      margin-bottom: 48px;
+      margin-bottom: 40px;
     }
 
-    /* Snake animation on landing */
-    .snake-preview {
+    /* Animated snake row */
+    .snake-row {
       display: flex;
-      gap: 4px;
-      margin-bottom: 48px;
-      animation: snakeWiggle 1s ease-in-out infinite alternate;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 44px;
+      animation: float 2s ease-in-out infinite alternate;
     }
-    @keyframes snakeWiggle {
-      from { transform: translateY(-4px); }
-      to   { transform: translateY(4px); }
+    @keyframes float {
+      from { transform: translateY(-5px); }
+      to   { transform: translateY(5px); }
     }
     .seg {
-      width: 22px; height: 22px;
-      border-radius: 5px;
-      background: #3cd23c;
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      background: #2ea02e;
     }
-    .seg:first-child {
-      background: #60d260;
+    .seg.head {
+      background: #3cd23c;
       border-radius: 8px;
+      box-shadow: 0 0 12px rgba(60,210,60,0.6);
       position: relative;
     }
-    .seg:first-child::before,
-    .seg:first-child::after {
+    .seg.head::before, .seg.head::after {
       content: '';
       position: absolute;
       width: 5px; height: 5px;
       background: #0a0a0a;
       border-radius: 50%;
-      top: 4px;
+      right: 4px;
     }
-    .seg:first-child::before { right: 3px; }
-    .seg:first-child::after  { right: 3px; top: 13px; }
-    .seg:last-child {
+    .seg.head::before { top: 4px; }
+    .seg.head::after  { top: 15px; }
+    .seg.tail {
       clip-path: polygon(0 25%, 75% 10%, 100% 50%, 75% 90%, 0 75%);
       border-radius: 0;
+      background: #1a801a;
     }
+    .apple-icon {
+      font-size: 22px;
+      margin-left: 10px;
+      animation: bounce 1s ease-in-out infinite alternate;
+    }
+    @keyframes bounce {
+      from { transform: scale(0.9); }
+      to   { transform: scale(1.1); }
+    }
+
+    /* Difficulty pills */
+    .diff-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .diff-pill {
+      padding: 8px 22px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      color: #4a5a6a;
+      border-color: #2a3540;
+    }
+    .diff-pill.easy   { color: #50c850; border-color: #50c850; }
+    .diff-pill.medium { color: #ddb830; border-color: #ddb830; }
+    .diff-pill.hard   { color: #dc3c3c; border-color: #dc3c3c; }
+    .diff-pill:hover  { transform: scale(1.06); }
 
     /* Loading bar */
     .load-wrap {
-      width: clamp(240px, 40vw, 380px);
-      margin-bottom: 20px;
+      width: clamp(240px, 42vw, 400px);
+      margin-bottom: 22px;
     }
     .load-label {
       color: #3a4a5a;
@@ -127,7 +163,7 @@
     }
     .load-track {
       width: 100%;
-      height: 6px;
+      height: 5px;
       background: #1e2530;
       border-radius: 3px;
       overflow: hidden;
@@ -136,48 +172,60 @@
     .load-bar {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #1a8a1a, #3cd23c, #6aff6a);
+      background: linear-gradient(90deg, #1a7a1a, #3cd23c, #80ff80);
       border-radius: 3px;
-      transition: width 0.3s ease;
+      transition: width 0.25s ease;
       box-shadow: 0 0 10px rgba(60,210,60,0.5);
     }
 
     /* Play button */
     #play-btn {
       display: none;
-      padding: 14px 48px;
+      padding: 15px 54px;
       background: transparent;
       border: 2px solid #3cd23c;
       color: #3cd23c;
       font-family: 'Consolas', monospace;
-      font-size: 16px;
+      font-size: 17px;
       font-weight: bold;
-      letter-spacing: 4px;
+      letter-spacing: 5px;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: 8px;
       text-transform: uppercase;
       transition: all 0.2s ease;
       animation: borderPulse 2s ease-in-out infinite;
-      margin-top: 12px;
+      margin-bottom: 18px;
     }
     @keyframes borderPulse {
       0%, 100% { box-shadow: 0 0 12px rgba(60,210,60,0.3); }
-      50%       { box-shadow: 0 0 28px rgba(60,210,60,0.7), inset 0 0 12px rgba(60,210,60,0.1); }
+      50%       { box-shadow: 0 0 28px rgba(60,210,60,0.8), inset 0 0 14px rgba(60,210,60,0.1); }
     }
     #play-btn:hover {
-      background: rgba(60,210,60,0.12);
+      background: rgba(60,210,60,0.1);
       transform: scale(1.04);
     }
-    #play-btn:active { transform: scale(0.98); }
 
-    .tip {
+    .controls-hint {
       color: #2a3a4a;
       font-size: 11px;
       letter-spacing: 2px;
-      margin-top: 32px;
+      text-align: center;
+      line-height: 2;
+      margin-bottom: 32px;
     }
 
-    /* ---- GAME CANVAS WRAPPER ---- */
+    .footer {
+      position: fixed;
+      bottom: 16px;
+      width: 100%;
+      text-align: center;
+      color: #2a3540;
+      font-size: 11px;
+      letter-spacing: 2px;
+    }
+    .footer span { color: #3a5a3a; }
+
+    /* Game canvas */
     #game-wrap {
       position: fixed;
       inset: 0;
@@ -195,95 +243,96 @@
       width: 100vw !important;
       height: 100vh !important;
       image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
   </style>
 </head>
 <body>
 
-  <!-- Landing overlay -->
   <div id="landing">
-    <div class="logo">LINKED LIST SNAKE</div>
-    <div class="subtitle">Data Structures &amp; Arcade</div>
+    <div class="logo">HIZZZ</div>
+    <div class="tagline">Snake &bull; Eat &bull; Survive &bull; Repeat</div>
 
-    <!-- Decorative snake -->
-    <div class="snake-preview">
+    <div class="snake-row">
+      <div class="seg head"></div>
       <div class="seg"></div>
       <div class="seg"></div>
       <div class="seg"></div>
       <div class="seg"></div>
-      <div class="seg"></div>
-      <div class="seg"></div>
-      <div class="seg"></div>
+      <div class="seg tail"></div>
+      <div class="apple-icon">&#127822;</div>
+    </div>
+
+    <div class="diff-row">
+      <div class="diff-pill easy">EASY</div>
+      <div class="diff-pill medium">MEDIUM</div>
+      <div class="diff-pill hard">HARD</div>
     </div>
 
     <div class="load-wrap">
-      <div class="load-label">Loading WebAssembly Engine</div>
+      <div class="load-label" id="load-label">Loading game...</div>
       <div class="load-track"><div class="load-bar" id="load-bar"></div></div>
     </div>
 
-    <button id="play-btn" onclick="startGame()">&#9654; &nbsp; PLAY</button>
-    <div class="tip" id="tip">Initializing Python runtime...</div>
+    <button id="play-btn" onclick="startGame()">PLAY</button>
+
+    <div class="controls-hint">
+      Arrow Keys / WASD to move &nbsp;|&nbsp; Swipe on mobile<br>
+      Eat apples to grow &nbsp;|&nbsp; Avoid rocks and yourself
+    </div>
+
+    <div class="footer">
+      hizzz.netlify.app &nbsp;&mdash;&nbsp; made by <span>Ayan Malaviya</span>
+    </div>
   </div>
 
-  <!-- Game canvas -->
   <div id="game-wrap">
     <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
   </div>
 
   <script>
-    // ---- Fake progress bar that advances as pygbag loads ----
-    let progress = 0;
-    const bar  = document.getElementById('load-bar');
-    const tip  = document.getElementById('tip');
-    const tips = [
-      'Loading Python 3.14 runtime...',
-      'Compiling WebAssembly modules...',
-      'Importing pygame-ce...',
-      'Building sprite textures...',
-      'Linking doubly linked list...',
-      'Ready to play!',
+    var progress = 0;
+    var bar      = document.getElementById('load-bar');
+    var label    = document.getElementById('load-label');
+    var tips     = [
+      'Loading game engine...',
+      'Building game world...',
+      'Spawning apples...',
+      'Placing rocks...',
+      'Almost ready...',
+      'Ready! Press PLAY',
     ];
-    let tipIdx = 0;
+    var tipIdx = 0;
 
-    const ticker = setInterval(() => {
-      const speed = progress < 60 ? 1.2 : progress < 85 ? 0.5 : 0.1;
-      progress = Math.min(progress + speed, 95);
+    var ticker = setInterval(function() {
+      var speed = progress < 60 ? 1.2 : progress < 85 ? 0.4 : 0.08;
+      progress  = Math.min(progress + speed, 95);
       bar.style.width = progress + '%';
-      const newTip = Math.floor((progress / 100) * (tips.length - 1));
-      if (newTip !== tipIdx) { tipIdx = newTip; tip.textContent = tips[tipIdx]; }
+      var ni = Math.floor((progress / 100) * (tips.length - 1));
+      if (ni !== tipIdx) { tipIdx = ni; label.textContent = tips[tipIdx]; }
     }, 80);
 
-    // Called by pygbag when the WASM module is fully ready
     function gameReady() {
       clearInterval(ticker);
+      progress = 100;
       bar.style.width = '100%';
-      tip.textContent = tips[tips.length - 1];
-      setTimeout(() => {
+      label.textContent = tips[tips.length - 1];
+      setTimeout(function() {
         document.getElementById('play-btn').style.display = 'block';
-      }, 400);
+      }, 300);
     }
 
     function startGame() {
       document.getElementById('landing').classList.add('hidden');
       document.getElementById('game-wrap').classList.add('visible');
-      // Tell canvas to go fullscreen
-      const c = document.getElementById('canvas');
-      if (c.requestFullscreen) c.requestFullscreen();
+      var c = document.getElementById('canvas');
+      if (c.requestFullscreen)       c.requestFullscreen();
+      else if (c.webkitRequestFullscreen) c.webkitRequestFullscreen();
     }
 
-    // ---- Pygbag bootstrap (do not rename these variables) ----
-    var _FS, canvas = document.getElementById('canvas');
-
-    // Intercept pygbag's ready signal
-    const _origDefine = window.define;
     window.__pygbag_ready = gameReady;
+    var canvas = document.getElementById('canvas');
   </script>
 
-  <!--
-    Pygbag injects its own <script> tags below this line when building.
-    Do NOT remove the line below — pygbag uses it as an injection marker.
-  -->
   <!-- PYGBAG_SCRIPTS -->
 
 </body>
