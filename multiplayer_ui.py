@@ -232,29 +232,302 @@ async def multiplayer_mode(client: MultiplayerClient, is_host: bool, nickname: s
     manager.nickname = nickname
     manager.selected_difficulty = difficulty
 
-    # Placeholder for now - actual 2-player game logic would go here
-    state = "lobby"
-
+    # Import required modules and functions
+    from main import (make_head, make_body, make_tail, make_stone, make_apple,
+                      SnakeLinkedList, DIFFICULTIES, DIR_ANGLE, interpolate, 
+                      draw_button, asset_path)
+    from multiplayer_logic import evaluate_multiplayer_collision
+    import os
+    
+    # Fonts
+    font_names = ["monospace", "dejavu sans mono", "courier new", "consolas"]
+    for font_name in font_names:
+        try:
+            font_lg = pygame.font.SysFont(font_name, max(28, CELL + 6), bold=True)
+            font_md = pygame.font.SysFont(font_name, max(20, CELL), bold=True)
+            font_sm = pygame.font.SysFont(font_name, max(14, CELL - 6))
+            break
+        except:
+            continue
+    else:
+        font_lg = pygame.font.Font(None, max(28, CELL + 6))
+        font_md = pygame.font.Font(None, max(20, CELL))
+        font_sm = pygame.font.Font(None, max(14, CELL - 6))
+    
+    COLS = W // CELL
+    ROWS = H // CELL
+    
+    # Create sprites
+    img_head  = make_head(CELL)
+    img_body  = make_body(CELL)
+    img_tail  = make_tail(CELL)
+    img_stone = make_stone(CELL)
+    img_apple = pygame.image.load(asset_path("apple.png")).convert_alpha()
+    
+    heads = {d: pygame.transform.rotate(img_head, a) for d, a in DIR_ANGLE.items()}
+    tails = {d: pygame.transform.rotate(img_tail, a) for d, a in DIR_ANGLE.items()}
+    
+    # Grid surface
+    grid_surf = pygame.Surface((W, H), pygame.SRCALPHA)
+    for gx in range(COLS):
+        for gy in range(ROWS):
+            pygame.draw.circle(grid_surf, (52, 56, 65),
+                               (gx * CELL + CELL // 2, gy * CELL + CELL // 2), 1)
+    
+    # Game state and player setup
+    cfg = DIFFICULTIES[difficulty]
+    SPEED = cfg["speed"]
+    
+    # Create two snakes - P1 on left, P2 on right
+    snake_p1 = SnakeLinkedList(COLS // 3, ROWS // 2)
+    snake_p2 = SnakeLinkedList(2 * COLS // 3, ROWS // 2)
+    
+    p1_dx = p1_dy = 0
+    p1_ndx, p1_ndy = 1, 0
+    p1_progress = 0.0
+    p1_score = 0
+    p1_tail_dir = (1, 0)
+    
+    p2_dx = p2_dy = 0
+    p2_ndx, p2_ndy = -1, 0
+    p2_progress = 0.0
+    p2_score = 0
+    p2_tail_dir = (-1, 0)
+    
+    # Apple and stones
+    apple_x = random.randint(0, COLS - 1)
+    apple_y = random.randint(0, ROWS - 1)
+    
+    stones = set()
+    while len(stones) < cfg["stones"]:
+        sx, sy = random.randint(0, COLS - 1), random.randint(0, ROWS - 1)
+        if (sx, sy) not in {(COLS // 3, ROWS // 2), (2 * COLS // 3, ROWS // 2), (apple_x, apple_y)}:
+            stones.add((sx, sy))
+    
+    state = "countdown"
+    countdown = 3.0
+    game_over_info = None
+    
     while True:
         dt = min(clock.tick(60) / 1000.0, 0.05)
-
+        
+        # ==================== EVENTS ====================
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return None
+                
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if client:
                         client.disconnect()
                     return "menu"
-
-        screen.fill((20, 22, 30))
-
-        # Draw placeholder
-        text = manager.font_lg.render("MULTIPLAYER MODE", True, (60, 210, 60))
-        screen.blit(text, (W // 2 - text.get_width() // 2, H // 2 - 50))
-
-        help_text = manager.font_sm.render("Multiplayer game in progress (placeholder)", True, (100, 100, 100))
-        screen.blit(help_text, (W // 2 - help_text.get_width() // 2, H // 2 + 50))
-
+                    
+                if state == "playing":
+                    # P1 controls: Arrow keys
+                    if event.key == pygame.K_UP and p1_dy != 1:
+                        p1_ndx, p1_ndy = 0, -1
+                    elif event.key == pygame.K_DOWN and p1_dy != -1:
+                        p1_ndx, p1_ndy = 0, 1
+                    elif event.key == pygame.K_LEFT and p1_dx != 1:
+                        p1_ndx, p1_ndy = -1, 0
+                    elif event.key == pygame.K_RIGHT and p1_dx != -1:
+                        p1_ndx, p1_ndy = 1, 0
+                        
+                    # P2 controls: WASD
+                    if event.key == pygame.K_w and p2_dy != 1:
+                        p2_ndx, p2_ndy = 0, -1
+                    elif event.key == pygame.K_s and p2_dy != -1:
+                        p2_ndx, p2_ndy = 0, 1
+                    elif event.key == pygame.K_a and p2_dx != 1:
+                        p2_ndx, p2_ndy = -1, 0
+                    elif event.key == pygame.K_d and p2_dx != -1:
+                        p2_ndx, p2_ndy = 1, 0
+                        
+            if event.type == pygame.MOUSEBUTTONDOWN and state == "game_over":
+                mx, my = event.pos
+                # Rematch button
+                if W//2 - 100 <= mx <= W//2 + 100 and H//2 + 80 <= my <= H//2 + 132:
+                    return "menu"
+        
+        # ==================== COUNTDOWN ====================
+        if state == "countdown":
+            countdown -= dt
+            if countdown <= 0:
+                state = "playing"
+        
+        # ==================== GAME LOGIC ====================
+        elif state == "playing":
+            p1_progress += dt * SPEED
+            p2_progress += dt * SPEED
+            
+            ate_apple_p1 = False
+            ate_apple_p2 = False
+            
+            # P1 move
+            if p1_progress >= 1.0:
+                p1_progress -= 1.0
+                p1_dx, p1_dy = p1_ndx, p1_ndy
+                
+                new_x = (snake_p1.head.x + p1_dx) % COLS
+                new_y = (snake_p1.head.y + p1_dy) % ROWS
+                
+                if new_x == apple_x and new_y == apple_y:
+                    ate_apple_p1 = True
+                    p1_score += 10 * cfg["score_mult"]
+                
+                snake_p1.move(new_x, new_y, ate_apple_p1)
+            
+            # P2 move
+            if p2_progress >= 1.0:
+                p2_progress -= 1.0
+                p2_dx, p2_dy = p2_ndx, p2_ndy
+                
+                new_x = (snake_p2.head.x + p2_dx) % COLS
+                new_y = (snake_p2.head.y + p2_dy) % ROWS
+                
+                if new_x == apple_x and new_y == apple_y:
+                    ate_apple_p2 = True
+                    p2_score += 10 * cfg["score_mult"]
+                
+                snake_p2.move(new_x, new_y, ate_apple_p2)
+            
+            # Both ate apple - spawn new one
+            if ate_apple_p1 or ate_apple_p2:
+                while True:
+                    apple_x = random.randint(0, COLS - 1)
+                    apple_y = random.randint(0, ROWS - 1)
+                    if (apple_x, apple_y) not in stones:
+                        break
+            
+            # Check collisions
+            p1_positions = snake_p1.get_positions()
+            p2_positions = snake_p2.get_positions()
+            
+            result = evaluate_multiplayer_collision(
+                p1_positions, p1_dx, p1_dy,
+                p2_positions, p2_dx, p2_dy,
+                stones, (apple_x, apple_y)
+            )
+            
+            if result["p1_dies"] or result["p2_dies"]:
+                if result["p1_dies"] and result["p2_dies"]:
+                    winner = "TIE"
+                elif result["p1_dies"]:
+                    winner = "P2"
+                else:
+                    winner = "P1"
+                    
+                game_over_info = {
+                    "winner": winner,
+                    "p1_score": p1_score,
+                    "p2_score": p2_score,
+                    "p1_length": snake_p1.length,
+                    "p2_length": snake_p2.length
+                }
+                state = "game_over"
+        
+        # ==================== RENDER ====================
+        screen.fill((40, 44, 52))
+        screen.blit(grid_surf, (0, 0))
+        
+        # Stones
+        for sx, sy in stones:
+            screen.blit(img_stone, (sx * CELL, sy * CELL))
+        
+        # Apple
+        pulse = 0.05 * math.sin(pygame.time.get_ticks() * 0.005)
+        apple_size = int(CELL * (1.0 + pulse))
+        apple_scaled = pygame.transform.smoothscale(img_apple, (apple_size, apple_size))
+        off = (CELL - apple_size) // 2
+        screen.blit(apple_scaled, (apple_x * CELL + off, apple_y * CELL + off))
+        
+        # Render snakes
+        def render_snake(snake, dx, dy, progress, is_p1=True):
+            positions = snake.get_positions()
+            
+            if not is_p1:
+                # Red snake for P2
+                red_head = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
+                pygame.draw.rect(red_head, (210, 60, 60), (0, 0, CELL, CELL), border_radius=12)
+                pygame.draw.rect(red_head, (160, 30, 30), (CELL // 2, 3, CELL // 2, CELL - 6), border_radius=8)
+                pygame.draw.circle(red_head, (240, 240, 240), (CELL - 7, 8), 5)
+                pygame.draw.circle(red_head, (240, 240, 240), (CELL - 7, CELL - 8), 5)
+                pygame.draw.circle(red_head, (10, 10, 10), (CELL - 5, 8), 2)
+                pygame.draw.circle(red_head, (10, 10, 10), (CELL - 5, CELL - 8), 2)
+                
+                red_heads = {d: pygame.transform.rotate(red_head, a) for d, a in DIR_ANGLE.items()}
+                
+                red_body = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
+                pygame.draw.rect(red_body, (200, 50, 50), (1, 1, CELL - 2, CELL - 2), border_radius=6)
+                pygame.draw.rect(red_body, (150, 30, 30), (5, 5, CELL - 10, CELL - 10), border_radius=4)
+                
+                img_body_use = red_body
+                heads_use = red_heads
+            else:
+                img_body_use = img_body
+                heads_use = heads
+            
+            nx_head = (positions[0][0] + (1 if dx == 1 else -1 if dx == -1 else 0)) % COLS
+            ny_head = (positions[0][1] + (1 if dy == 1 else -1 if dy == -1 else 0)) % ROWS
+            next_positions = [(nx_head, ny_head)] + positions[:-1]
+            
+            for i, ((cx, cy), (nxt_x, nxt_y)) in enumerate(zip(positions, next_positions)):
+                rx, ry = interpolate(cx, cy, nxt_x, nxt_y, progress, COLS, ROWS, CELL)
+                if i == 0:
+                    screen.blit(heads_use.get((dx, dy), img_head), (rx, ry))
+                elif i == len(positions) - 1:
+                    screen.blit(tails.get((dx, dy), img_tail), (rx, ry))
+                else:
+                    screen.blit(img_body_use, (rx, ry))
+        
+        render_snake(snake_p1, p1_dx, p1_dy, p1_progress, is_p1=True)
+        render_snake(snake_p2, p2_dx, p2_dy, p2_progress, is_p1=False)
+        
+        # HUD
+        hud_p1 = font_sm.render(f"P1 ({nickname}): {p1_score} pts | Len: {snake_p1.length}", 
+                                True, (80, 200, 80))
+        screen.blit(hud_p1, (10, 10))
+        
+        hud_p2 = font_sm.render(f"P2 (Opponent): {p2_score} pts | Len: {snake_p2.length}", 
+                                True, (200, 80, 80))
+        screen.blit(hud_p2, (W - hud_p2.get_width() - 10, 10))
+        
+        # Countdown display
+        if state == "countdown":
+            cd_val = max(0, int(countdown) + 1)
+            if cd_val > 0:
+                cd_txt = font_lg.render(str(cd_val), True, (200, 200, 100))
+            else:
+                cd_txt = font_lg.render("GO!", True, (100, 200, 100))
+            screen.blit(cd_txt, (W // 2 - cd_txt.get_width() // 2, H // 2 - cd_txt.get_height() // 2))
+        
+        # Game over screen
+        if state == "game_over" and game_over_info:
+            overlay = pygame.Surface((W, H), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150))
+            screen.blit(overlay, (0, 0))
+            
+            if game_over_info["winner"] == "TIE":
+                go_txt = font_lg.render("TIE!", True, (200, 200, 100))
+            elif game_over_info["winner"] == "P1":
+                go_txt = font_lg.render("YOU WIN!", True, (100, 200, 100))
+            else:
+                go_txt = font_lg.render("OPPONENT WINS!", True, (200, 100, 100))
+            
+            screen.blit(go_txt, (W // 2 - go_txt.get_width() // 2, H // 2 - 80))
+            
+            score_txt = font_md.render(
+                f"P1: {game_over_info['p1_score']} pts (len {game_over_info['p1_length']})  |  " +
+                f"P2: {game_over_info['p2_score']} pts (len {game_over_info['p2_length']})",
+                True, (200, 200, 200)
+            )
+            screen.blit(score_txt, (W // 2 - score_txt.get_width() // 2, H // 2 - 20))
+            
+            # Rematch button
+            draw_button(screen, W // 2 - 100, H // 2 + 80, 200, 52, (100, 150, 200), alpha=200)
+            rematch_txt = font_md.render("BACK TO MENU", True, (255, 255, 255))
+            screen.blit(rematch_txt, (W // 2 - rematch_txt.get_width() // 2,
+                                      H // 2 + 80 + 26 - rematch_txt.get_height() // 2))
+        
         pygame.display.flip()
         await asyncio.sleep(0)
