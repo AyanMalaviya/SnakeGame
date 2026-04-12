@@ -4,17 +4,17 @@ help:
 	@echo "Linked List Snake - Build & Run Targets"
 	@echo "======================================="
 	@echo "  make install        - Install dependencies"
-	@echo "  make run            - Run the game directly"
-	@echo "  make server         - Start multiplayer server"
-	@echo "  make build-appimage - Build Linux AppImage"
-	@echo "  make build-windows  - Build Windows executable"
+	@echo "  make run            - Run the game with embedded multiplayer server"
+	@echo "  make server         - Start standalone multiplayer server (optional)"
+	@echo "  make build-appimage - Build Linux AppImage (includes embedded server)"
+	@echo "  make build-windows  - Build Windows executable (includes embedded server)"
 	@echo "  make clean          - Remove build artifacts"
 
 install:
 	pip install -r requirements.txt
 
 run:
-	python3 main.py
+	python3 main_multiplayer.py
 
 server:
 	python3 multiplayer_server.py

@@ -11,13 +11,14 @@ echo "======================================"
 if [ ! -f "dist/Linked_List_Snake" ]; then
     echo "Building executable with PyInstaller..."
     pip install pyinstaller -q
+    # Use main_multiplayer.py for embedded server support
     python3 -m PyInstaller \
         --name="Linked_List_Snake" \
         --onefile \
         --windowed \
         --hidden-import=pygame \
         --add-data="apple.png:." \
-        main.py
+        main_multiplayer.py
     echo "✓ Executable created: dist/Linked_List_Snake"
 fi
 

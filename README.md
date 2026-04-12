@@ -35,26 +35,32 @@ A visually stunning Snake game written in Python with Pygame, featuring a doubly
 
 3. **Run the game**
    ```bash
-   python main.py
+   # New: Use main_multiplayer.py for bundled single + multiplayer modes
+   python3 main_multiplayer.py
+   
+   # Or run single-player only:
+   python3 main.py
    ```
 
-### Multiplayer Mode
+### Multiplayer Mode (NEW!)
 
-To play with a friend online:
+**No server setup needed!** The multiplayer server is now **embedded** in the game executable.
 
-**NEW! Quick Start:**
+Just run:
 ```bash
-# Terminal 1: Start the multiplayer server
-bash start_multiplayer_server.sh
-
-# Terminal 2: Launch the game with multiplayer menu
 python3 main_multiplayer.py
 ```
 
-Then from the menu:
-- **Host A Game**: Create a session (other players join you)
-- **Join A Game**: Connect to someone's session
-- **Single Player**: Play the original game
+Then from the menu, select:
+- **SINGLE PLAYER**: Classic single-player experience
+- **MULTIPLAYER HOST**: Create a game session
+- **MULTIPLAYER JOIN**: Join someone's session
+
+**On the same machine or network:**
+- Launch the game on two computers (or two terminals)
+- One player selects "HOST", the other selects "JOIN"
+- Both join automatically with 3-second countdown
+- Use Arrow Keys (P1) and WASD (P2) to control snakes
 
 **Full Details:** See [MULTIPLAYER_SETUP.md](MULTIPLAYER_SETUP.md)
 

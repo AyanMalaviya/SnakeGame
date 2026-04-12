@@ -24,7 +24,9 @@ mkdir -p "$APPDIR/usr/share/pixmaps"
 
 echo "Setting up AppImage directory..."
 
-# Copy game files
+# Copy game files (use main_multiplayer.py for embedded server support)
+cp main_multiplayer.py "$APPDIR/main_multiplayer.py"
+# Also copy main.py as it's imported by main_multiplayer.py
 cp main.py "$APPDIR/main.py"
 if [ -f "apple.png" ]; then
     cp apple.png "$APPDIR/apple.png"

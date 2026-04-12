@@ -23,13 +23,14 @@ fi
 
 # Build with PyInstaller
 echo "Building executable..."
+# Use main_multiplayer.py for embedded server support
 pyinstaller \
     --name="Linked List Snake" \
     --windowed \
     --onefile \
     --hidden-import=pygame \
     --add-data="apple.png:." \
-    main.py
+    main_multiplayer.py
 
 echo "=============================================="
 echo "Build complete!"

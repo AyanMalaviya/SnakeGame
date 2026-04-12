@@ -33,7 +33,7 @@ python3 -m PyInstaller \
     --windowed \
     --hidden-import=pygame \
     --add-data="apple.png:." \
-    main.py
+    main_multiplayer.py
 
 if [ ! -f "dist/Linked_List_Snake" ]; then
     echo "Error: PyInstaller build failed"

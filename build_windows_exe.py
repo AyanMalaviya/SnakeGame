@@ -51,6 +51,7 @@ def main():
         spec_file.unlink()
     
     # Build with PyInstaller
+    # Use main_multiplayer.py for embedded server support
     icon_arg = '--icon=snake-icon.ico' if os.path.exists('snake-icon.ico') else ''
     apple_arg = '--add-data=apple.png:.' if os.path.exists('apple.png') else ''
     
@@ -61,7 +62,7 @@ def main():
         --hidden-import=pygame \
         {apple_arg} \
         {icon_arg} \
-        main.py'''
+        main_multiplayer.py'''
     
     run_command(cmd, "Building executable")
     

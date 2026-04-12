@@ -4,6 +4,9 @@
 Linked List Snake - Multiplayer Integration
 Extended version of main.py with multiplayer support
 Run this instead of main.py for multiplayer capability
+
+This script automatically starts an embedded multiplayer server in the background,
+so users only need to launch one executable for both single-player and multiplayer modes.
 """
 
 import pygame
@@ -12,8 +15,11 @@ import sys
 import math
 import asyncio
 import os
+import threading
+import time
 from multiplayer_client import MultiplayerClient
 from multiplayer_ui import MultiplayerManager, multiplayer_mode
+from multiplayer_server import MultiplayerServer
 
 # Import everything from original main.py
 try:
@@ -26,6 +32,57 @@ try:
 except ImportError:
     print("Error: Could not import from main.py")
     sys.exit(1)
+
+
+# ==================== EMBEDDED MULTIPLAYER SERVER ====================
+class EmbeddedServerManager:
+    """Manages an embedded multiplayer server running in a background thread"""
+    
+    def __init__(self, host='127.0.0.1', port=9999):
+        self.server = None
+        self.host = host
+        self.port = port
+        self.thread = None
+        self.running = False
+    
+    def start(self):
+        """Start the server in a background thread"""
+        if self.running:
+            return True
+        
+        try:
+            self.server = MultiplayerServer(self.host, self.port)
+            self.running = True
+            self.thread = threading.Thread(target=self._run_server, daemon=True)
+            self.thread.start()
+            time.sleep(0.5)  # Give server time to start
+            return True
+        except Exception as e:
+            print(f"Error starting embedded server: {e}")
+            self.running = False
+            return False
+    
+    def _run_server(self):
+        """Run the server (internal - runs in thread)"""
+        try:
+            self.server.start()
+        except Exception as e:
+            print(f"Server error: {e}")
+        finally:
+            self.running = False
+    
+    def stop(self):
+        """Stop the server gracefully"""
+        if self.running and self.server:
+            self.server.shutdown()
+            self.running = False
+            # Wait briefly for thread to finish
+            if self.thread:
+                self.thread.join(timeout=2)
+
+
+# Global server manager
+_server_manager = None
 
 
 async def game_mode_selector(screen_width: int, screen_height: int) -> str:
@@ -260,28 +317,45 @@ async def multiplayer_setup(mode: str) -> tuple:
 async def main_with_multiplayer():
     """
     Main game loop with multiplayer support
+    Automatically starts an embedded multiplayer server
     """
+    global _server_manager
+    
     pygame.init()
+    
+    # Start embedded multiplayer server
+    _server_manager = EmbeddedServerManager('127.0.0.1', 9999)
+    if not _server_manager.start():
+        print("Warning: Could not start multiplayer server. Multiplayer mode may not work.")
+    else:
+        print("✓ Multiplayer server started on 127.0.0.1:9999")
+    
+    try:
+        while True:
+            # Show mode selector
+            mode = await game_mode_selector(1920, 1080)
 
-    while True:
-        # Show mode selector
-        mode = await game_mode_selector(1920, 1080)
+            if mode == "exit":
+                pygame.quit()
+                sys.exit()
 
-        if mode == "exit":
-            pygame.quit()
-            sys.exit()
+            elif mode == "single":
+                # Run single player game
+                await main()
 
-        elif mode == "single":
-            # Run single player game
-            await main()
-
-        elif mode in ("multiplayer_host", "multiplayer_join"):
-            # Setup multiplayer
-            result = await multiplayer_setup(mode)
-            if result:
-                client, session_id, nickname, difficulty = result
-                # Run multiplayer game
-                await multiplayer_mode(client, mode == "multiplayer_host", nickname, difficulty, 1920, 1080, 40)
+            elif mode in ("multiplayer_host", "multiplayer_join"):
+                # Setup multiplayer
+                result = await multiplayer_setup(mode)
+                if result:
+                    client, session_id, nickname, difficulty = result
+                    # Run multiplayer game
+                    await multiplayer_mode(client, mode == "multiplayer_host", nickname, difficulty, 1920, 1080, 40)
+    
+    finally:
+        # Ensure server is stopped when exiting
+        if _server_manager and _server_manager.running:
+            _server_manager.stop()
+            print("✓ Multiplayer server shut down")
 
 
 if __name__ == "__main__":
