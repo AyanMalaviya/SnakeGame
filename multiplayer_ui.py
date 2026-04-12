@@ -236,7 +236,7 @@ async def multiplayer_mode(client: MultiplayerClient, is_host: bool, nickname: s
     from main import (make_head, make_body, make_tail, make_stone, make_apple,
                       SnakeLinkedList, DIFFICULTIES, DIR_ANGLE, interpolate, 
                       draw_button, asset_path)
-    from multiplayer_logic import evaluate_multiplayer_collision
+    from multiplayer_logic import MultiplayerGameLogic
     import os
     
     # Fonts
@@ -399,20 +399,35 @@ async def multiplayer_mode(client: MultiplayerClient, is_host: bool, nickname: s
                     if (apple_x, apple_y) not in stones:
                         break
             
-            # Check collisions
+            # Check collisions every frame
             p1_positions = snake_p1.get_positions()
             p2_positions = snake_p2.get_positions()
             
-            result = evaluate_multiplayer_collision(
-                p1_positions, p1_dx, p1_dy,
-                p2_positions, p2_dx, p2_dy,
-                stones, (apple_x, apple_y)
+            # Check two-player collisions (head-to-head, head-to-body)
+            p1_dies_mp, p2_dies_mp, collision_type = MultiplayerGameLogic.evaluate_multiplayer_collision(
+                p1_positions[0], p1_positions,
+                (p1_dx, p1_dy),
+                p2_positions[0], p2_positions,
+                (p2_dx, p2_dy),
+                COLS, ROWS
             )
             
-            if result["p1_dies"] or result["p2_dies"]:
-                if result["p1_dies"] and result["p2_dies"]:
+            # Check self-collisions
+            p1_self_died = MultiplayerGameLogic.check_self_collision(p1_positions)
+            p2_self_died = MultiplayerGameLogic.check_self_collision(p2_positions)
+            
+            # Check stone collisions
+            p1_stone_died = MultiplayerGameLogic.check_stone_collision(p1_positions[0], stones)
+            p2_stone_died = MultiplayerGameLogic.check_stone_collision(p2_positions[0], stones)
+            
+            # Combine all death conditions
+            p1_dies = p1_dies_mp or p1_self_died or p1_stone_died
+            p2_dies = p2_dies_mp or p2_self_died or p2_stone_died
+            
+            if p1_dies or p2_dies:
+                if p1_dies and p2_dies:
                     winner = "TIE"
-                elif result["p1_dies"]:
+                elif p1_dies:
                     winner = "P2"
                 else:
                     winner = "P1"
