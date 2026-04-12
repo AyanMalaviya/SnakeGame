@@ -1,0 +1,2 @@
+# Linked List Snake game dependencies
+pygame>=2.1.0

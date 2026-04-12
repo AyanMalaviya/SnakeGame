@@ -225,10 +225,21 @@ async def main():
     COLS = W // CELL
     ROWS = H // CELL
 
-    # Fonts scaled to cell size
-    font_lg = pygame.font.SysFont("consolas", max(28, CELL + 6), bold=True)
-    font_md = pygame.font.SysFont("consolas", max(20, CELL),     bold=True)
-    font_sm = pygame.font.SysFont("consolas", max(14, CELL - 6))
+    # Fonts scaled to cell size - using cross-platform fonts
+    font_names = ["monospace", "dejavu sans mono", "courier new", "consolas"]
+    for font_name in font_names:
+        try:
+            font_lg = pygame.font.SysFont(font_name, max(28, CELL + 6), bold=True)
+            font_md = pygame.font.SysFont(font_name, max(20, CELL),     bold=True)
+            font_sm = pygame.font.SysFont(font_name, max(14, CELL - 6))
+            break
+        except:
+            continue
+    else:
+        # Fallback to default font if none available
+        font_lg = pygame.font.Font(None, max(28, CELL + 6))
+        font_md = pygame.font.Font(None, max(20, CELL))
+        font_sm = pygame.font.Font(None, max(14, CELL - 6))
 
     # Build all sprites once at startup
     img_head  = make_head(CELL)
@@ -324,7 +335,8 @@ async def main():
         # ==========================================
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
+                pygame.quit()
+                return
 
             # ---------- MENU ----------
             if state == "menu":

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Linked List Snake
+Comment=A fun Snake game built with Pygame using Linked List data structure
+Exec=linked-list-snake
+Icon=snake-icon
+Categories=Game;
+Terminal=false
+StartupNotify=true

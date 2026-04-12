@@ -1,0 +1,28 @@
+#!/bin/bash
+# AppRun script for Linked List Snake AppImage
+# This script runs when the AppImage is executed
+
+set -e
+
+# Get the directory of the AppImage
+APPDIR="$(dirname "$(readlink -f "$0")")"
+
+# Set up environment
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
+export PATH="$APPDIR/usr/bin:$PATH"
+export PYTHONPATH="$APPDIR/usr/lib/python3.11/site-packages:$PYTHONPATH"
+
+# Find Python executable
+PYTHON="$APPDIR/usr/bin/python3"
+
+if [ ! -f "$PYTHON" ]; then
+    PYTHON="$(which python3)"
+fi
+
+if [ ! -f "$PYTHON" ]; then
+    echo "Python 3 not found!"
+    exit 1
+fi
+
+# Run the game
+"$PYTHON" "$APPDIR/main.py" "$@"
