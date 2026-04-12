@@ -4,6 +4,7 @@ import random
 import sys
 import math
 import asyncio
+import os
 
 # ==========================================
 # DOUBLY LINKED LIST DATA STRUCTURE
@@ -120,6 +121,12 @@ def interpolate(cx, cy, nx, ny, t, gw, gh, cell):
 
 DIR_ANGLE = {(1, 0): 0, (-1, 0): 180, (0, -1): 90, (0, 1): -90}
 
+
+def asset_path(name):
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, name)
+    return os.path.join(os.path.dirname(__file__), name)
+
 # ==========================================
 # DIFFICULTY SETTINGS
 # ==========================================
@@ -171,6 +178,33 @@ def draw_button(screen, x, y, w, h, color, alpha=180, radius=14):
     screen.blit(surf, (x, y))
 
 
+def draw_pause_icon_button(screen, rect, is_paused):
+    surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    base = (70, 160, 90, 205) if is_paused else (70, 140, 210, 205)
+    pygame.draw.ellipse(surf, base, (0, 0, rect.w, rect.h))
+    pygame.draw.ellipse(surf, (255, 255, 255, 130), (0, 0, rect.w, rect.h), 2)
+
+    if is_paused:
+        tri = [
+            (rect.w // 2 - rect.w // 8, rect.h // 2 - rect.h // 5),
+            (rect.w // 2 - rect.w // 8, rect.h // 2 + rect.h // 5),
+            (rect.w // 2 + rect.w // 5, rect.h // 2),
+        ]
+        pygame.draw.polygon(surf, (245, 245, 245), tri)
+    else:
+        bar_w = max(4, rect.w // 8)
+        bar_h = max(16, rect.h // 3)
+        bar_y = rect.h // 2 - bar_h // 2
+        gap = max(4, bar_w)
+        cx = rect.w // 2
+        pygame.draw.rect(surf, (245, 245, 245),
+                         (cx - gap - bar_w, bar_y, bar_w, bar_h), border_radius=2)
+        pygame.draw.rect(surf, (245, 245, 245),
+                         (cx + gap, bar_y, bar_w, bar_h), border_radius=2)
+
+    screen.blit(surf, rect.topleft)
+
+
 # ==========================================
 # MAIN GAME
 # ==========================================
@@ -201,7 +235,7 @@ async def main():
     img_body  = make_body(CELL)
     img_tail  = make_tail(CELL)
     img_stone = make_stone(CELL)
-    img_apple = pygame.image.load('apple.png').convert_alpha()
+    img_apple = pygame.image.load(asset_path("apple.png")).convert_alpha()
 
     # Pre-rotate head and tail for all 4 directions -- avoids per-frame cost
     heads = {d: pygame.transform.rotate(img_head, a) for d, a in DIR_ANGLE.items()}
@@ -231,16 +265,41 @@ async def main():
     apple_x = apple_y = 0
     stones        = set()
     SPEED         = 10.0
+    bonus_points_total = 0
+    bonus_moves_left = 0
+    move_count    = 0
+    last_apple_move = None
     swipe_start   = None
     SWIPE_MIN     = CELL * 1.5
+    is_paused     = False
+
+    # Top-right icon button + pause overlay actions
+    UI_BTN_SIZE = max(44, CELL * 2)
+    UI_BTN_PAD = 10
+    pause_btn_rect = pygame.Rect(W - UI_BTN_SIZE - UI_BTN_PAD, UI_BTN_PAD, UI_BTN_SIZE, UI_BTN_SIZE)
+    PAUSE_BTN_W = max(190, W // 5)
+    PAUSE_BTN_H = 52
+    PAUSE_BTN_GAP = 12
+    resume_btn_rect = pygame.Rect(W // 2 - PAUSE_BTN_W // 2, H // 2 + 26,
+                                  PAUSE_BTN_W, PAUSE_BTN_H)
+    pause_menu_btn_rect = pygame.Rect(W // 2 - PAUSE_BTN_W // 2,
+                                      H // 2 + 26 + PAUSE_BTN_H + PAUSE_BTN_GAP,
+                                      PAUSE_BTN_W, PAUSE_BTN_H)
 
     def init_game(diff):
         nonlocal snake, dx, dy, ndx, ndy, progress, score
-        nonlocal tail_dir, apple_x, apple_y, stones, SPEED
+        nonlocal tail_dir, apple_x, apple_y, stones, SPEED, is_paused
+        nonlocal bonus_points_total, bonus_moves_left
+        nonlocal move_count, last_apple_move
 
         cfg   = DIFFICULTIES[diff]
         SPEED = cfg["speed"]
         score = 0
+        bonus_points_total = 0
+        bonus_moves_left = 0
+        move_count = 0
+        last_apple_move = None
+        is_paused = False
         progress  = 0.0
         dx = dy   = 0
         ndx, ndy  = 1, 0
@@ -294,17 +353,36 @@ async def main():
             # ---------- GAME ----------
             elif state == "game":
                 if event.type == pygame.KEYDOWN:
-                    # Arrow Keys + WASD both supported
-                    if   event.key in (pygame.K_UP,    pygame.K_w) and dy != 1:  ndx, ndy = 0, -1
-                    elif event.key in (pygame.K_DOWN,  pygame.K_s) and dy != -1: ndx, ndy = 0,  1
-                    elif event.key in (pygame.K_LEFT,  pygame.K_a) and dx != 1:  ndx, ndy = -1, 0
-                    elif event.key in (pygame.K_RIGHT, pygame.K_d) and dx != -1: ndx, ndy =  1, 0
+                    if event.key == pygame.K_p:
+                        is_paused = not is_paused
                     elif event.key == pygame.K_ESCAPE:
+                        is_paused = False
                         state = "menu"
+                    # Arrow Keys + WASD both supported
+                    elif not is_paused:
+                        if   event.key in (pygame.K_UP,    pygame.K_w) and dy != 1:  ndx, ndy = 0, -1
+                        elif event.key in (pygame.K_DOWN,  pygame.K_s) and dy != -1: ndx, ndy = 0,  1
+                        elif event.key in (pygame.K_LEFT,  pygame.K_a) and dx != 1:  ndx, ndy = -1, 0
+                        elif event.key in (pygame.K_RIGHT, pygame.K_d) and dx != -1: ndx, ndy =  1, 0
 
                 # D-pad tap OR start swipe
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
+
+                    if pause_btn_rect.collidepoint(mx, my):
+                        is_paused = not is_paused
+                        swipe_start = None
+                        continue
+
+                    if is_paused:
+                        if resume_btn_rect.collidepoint(mx, my):
+                            is_paused = False
+                        elif pause_menu_btn_rect.collidepoint(mx, my):
+                            is_paused = False
+                            state = "menu"
+                        swipe_start = None
+                        continue
+
                     hit = hit_dpad(mx, my, dpad_pos, BTN_R)
                     if   hit == "up"    and dy != 1:  ndx, ndy = 0, -1
                     elif hit == "down"  and dy != -1: ndx, ndy = 0,  1
@@ -314,7 +392,7 @@ async def main():
                         swipe_start = (mx, my)
 
                 # Evaluate swipe on release
-                if event.type == pygame.MOUSEBUTTONUP and swipe_start:
+                if event.type == pygame.MOUSEBUTTONUP and (not is_paused) and swipe_start:
                     ex, ey = event.pos
                     sdx    = ex - swipe_start[0]
                     sdy    = ey - swipe_start[1]
@@ -385,6 +463,7 @@ async def main():
                 "Left / Right or A / D  :  Switch Difficulty",
                 "Arrow Keys / WASD      :  Move Snake",
                 "Swipe or D-Pad         :  Mobile Controls",
+                "P                      :  Pause / Resume",
                 "ESC                    :  Back to Menu",
             ]
             for j, h in enumerate(hints):
@@ -396,19 +475,21 @@ async def main():
         # ==========================================
         elif state == "game":
             # Advance interpolation at game speed (independent of FPS)
-            progress += dt * SPEED
+            if not is_paused:
+                progress += dt * SPEED
 
             # Predict next head position for smooth rendering before logic fires
             nx_head = (snake.head.x + ndx) % COLS
             ny_head = (snake.head.y + ndy) % ROWS
 
             # Logic tick: fires once per grid cell
-            if progress >= 1.0:
+            if (not is_paused) and progress >= 1.0:
                 progress -= 1.0
                 dx, dy = ndx, ndy
 
                 new_x = (snake.head.x + dx) % COLS
                 new_y = (snake.head.y + dy) % ROWS
+                move_count += 1
 
                 # Rule 1: Stone collision
                 if (new_x, new_y) in stones:
@@ -418,11 +499,21 @@ async def main():
                 ate_apple = (new_x == apple_x and new_y == apple_y)
                 if ate_apple:
                     score += 10 * DIFFICULTIES[selected_diff]["score_mult"]
+                    # Combo bonus: second apple eaten within 2 moves grants +1.
+                    if last_apple_move is not None and (move_count - last_apple_move) < 3:
+                        score += 1
+                        bonus_points_total += 1
+                    last_apple_move = move_count
                     while True:
                         apple_x = random.randint(0, COLS - 1)
                         apple_y = random.randint(0, ROWS - 1)
                         if (apple_x, apple_y) not in stones:
                             break
+
+                if last_apple_move is None:
+                    bonus_moves_left = 0
+                else:
+                    bonus_moves_left = max(0, 2 - (move_count - last_apple_move))
 
                 # Move the doubly linked list one cell
                 snake.move(new_x, new_y, ate_apple)
@@ -482,8 +573,38 @@ async def main():
                                  True, (190, 195, 210))
             screen.blit(hud, (badge_w + 18, 8))
 
-            esc_hint = font_sm.render("ESC - Menu", True, (70, 80, 95))
-            screen.blit(esc_hint, (W - esc_hint.get_width() - 10, 10))
+            bonus_hud = font_sm.render("Bonus Moves Left: " + str(bonus_moves_left) +
+                                       "   Bonus Points: +" + str(bonus_points_total),
+                                       True, (140, 208, 150))
+            screen.blit(bonus_hud, (badge_w + 18, 34))
+
+            if is_paused:
+                pause_overlay = pygame.Surface((W, H), pygame.SRCALPHA)
+                pause_overlay.fill((0, 0, 0, 110))
+                screen.blit(pause_overlay, (0, 0))
+
+                p_title = font_lg.render("PAUSED", True, (245, 245, 245))
+                screen.blit(p_title, (W//2 - p_title.get_width()//2, H//2 - 58))
+
+                p_hint = font_sm.render("Tap Resume or press P to continue", True, (205, 210, 220))
+                screen.blit(p_hint, (W//2 - p_hint.get_width()//2, H//2 + 2))
+
+                draw_button(screen, resume_btn_rect.x, resume_btn_rect.y,
+                            resume_btn_rect.w, resume_btn_rect.h,
+                            (60, 180, 60), alpha=200, radius=10)
+                resume_txt = font_md.render("RESUME", True, (255, 255, 255))
+                screen.blit(resume_txt, (resume_btn_rect.x + resume_btn_rect.w//2 - resume_txt.get_width()//2,
+                                         resume_btn_rect.y + resume_btn_rect.h//2 - resume_txt.get_height()//2))
+
+                draw_button(screen, pause_menu_btn_rect.x, pause_menu_btn_rect.y,
+                            pause_menu_btn_rect.w, pause_menu_btn_rect.h,
+                            (80, 95, 180), alpha=190, radius=10)
+                pause_menu_txt = font_md.render("BACK TO MENU", True, (255, 255, 255))
+                screen.blit(pause_menu_txt,
+                            (pause_menu_btn_rect.x + pause_menu_btn_rect.w//2 - pause_menu_txt.get_width()//2,
+                             pause_menu_btn_rect.y + pause_menu_btn_rect.h//2 - pause_menu_txt.get_height()//2))
+
+            draw_pause_icon_button(screen, pause_btn_rect, is_paused)
 
         # ==========================================
         # RENDER: GAME OVER
@@ -499,8 +620,13 @@ async def main():
                                 True, (200, 200, 210))
             screen.blit(sc, (W//2 - sc.get_width()//2, H//2 - 25))
 
+            bonus_txt = font_sm.render("Bonus Points: +" + str(bonus_points_total) +
+                                       "    Bonus Moves Left: " + str(bonus_moves_left),
+                                       True, (155, 220, 170))
+            screen.blit(bonus_txt, (W//2 - bonus_txt.get_width()//2, H//2 + 3))
+
             dt_txt = font_sm.render("Difficulty: " + diff_cfg["label"], True, diff_cfg["color"])
-            screen.blit(dt_txt, (W//2 - dt_txt.get_width()//2, H//2 + 15))
+            screen.blit(dt_txt, (W//2 - dt_txt.get_width()//2, H//2 + 23))
 
             # Restart button
             draw_button(screen, W//2 - 100, H//2 + 50, 200, 52, (60, 180, 60), alpha=200)
