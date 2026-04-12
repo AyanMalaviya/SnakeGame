@@ -1,13 +1,14 @@
-.PHONY: install run build-appimage build-windows clean help
+.PHONY: install run build-appimage build-windows clean help server
 
 help:
 	@echo "Linked List Snake - Build & Run Targets"
 	@echo "======================================="
-	@echo "  make install       - Install dependencies"
-	@echo "  make run           - Run the game directly"
-	@echo "  make build-appimage - Build Linux AppImage (requires linuxdeploy or appimagetool)"
-	@echo "  make build-windows  - Build Windows executable (requires PyInstaller)"
-	@echo "  make clean         - Remove build artifacts"
+	@echo "  make install        - Install dependencies"
+	@echo "  make run            - Run the game directly"
+	@echo "  make server         - Start multiplayer server"
+	@echo "  make build-appimage - Build Linux AppImage"
+	@echo "  make build-windows  - Build Windows executable"
+	@echo "  make clean          - Remove build artifacts"
 
 install:
 	pip install -r requirements.txt
@@ -15,8 +16,11 @@ install:
 run:
 	python3 main.py
 
+server:
+	python3 multiplayer_server.py
+
 build-appimage:
-	bash build_appimage_linuxdeploy.sh
+	bash build_appimage_simple.sh
 
 build-windows:
 	python3 build_windows_exe.py

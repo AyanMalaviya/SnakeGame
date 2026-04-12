@@ -5,6 +5,7 @@ A visually stunning Snake game written in Python with Pygame, featuring a doubly
 ## Features
 
 - 🐍 Classic snake gameplay with modern visuals
+- 👥 **NEW: 2-Player Multiplayer** - Play online with a friend!
 - 🎮 Three difficulty levels (Easy, Medium, Hard)
 - 🎨 Beautiful gradient graphics and animations
 - ⌨️ Keyboard controls (Arrow Keys / WASD)
@@ -36,6 +37,30 @@ A visually stunning Snake game written in Python with Pygame, featuring a doubly
    ```bash
    python main.py
    ```
+
+### Multiplayer Mode
+
+To play with a friend online:
+
+1. **Start the server** (one computer only)
+   ```bash
+   # Linux/macOS
+   bash start_multiplayer_server.sh
+   
+   # Windows
+   start_multiplayer_server.bat
+   ```
+
+2. **Launch the game** (both players)
+   ```bash
+   python main.py
+   ```
+
+3. **From the menu:**
+   - **Host**: Create a game session for others to join
+   - **Join**: Connect to someone else's session
+
+**For details, see [MULTIPLAYER_QUICKSTART.md](MULTIPLAYER_QUICKSTART.md)**
 
 ### Windows
 
