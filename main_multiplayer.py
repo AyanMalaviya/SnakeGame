@@ -1,213 +1,136 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Linked List Snake - Multiplayer Integration
-Extended version of main.py with multiplayer support
-Run this instead of main.py for multiplayer capability
+Snake Rush - Local Multiplayer Launcher
 
-This script automatically starts an embedded multiplayer server in the background,
-so users only need to launch one executable for both single-player and multiplayer modes.
+This launcher keeps the project focused on EXE/Android/Linux builds without
+network hosting requirements.
 """
 
 import pygame
-import random
 import sys
-import math
 import asyncio
-import os
-import threading
-import time
-from multiplayer_client import MultiplayerClient
-from multiplayer_ui import MultiplayerManager, multiplayer_mode
-from multiplayer_server import MultiplayerServer
+from multiplayer_ui import multiplayer_mode
 
-# Import everything from original main.py
+# Import single-player game entry point
 try:
-    # Import all necessary components (simulated here)
-    from main import (
-        Node, SnakeLinkedList, make_head, make_body, make_tail, make_stone, make_apple,
-        interpolate, asset_path, DIR_ANGLE, DIFFICULTIES, DIFF_KEYS,
-        get_dpad_rects, draw_dpad, hit_dpad, draw_button, draw_pause_icon_button, main
-    )
+    from main import main
 except ImportError:
-    print("Error: Could not import from main.py")
+    print("Error: Could not import main() from main.py")
     sys.exit(1)
 
 
-# ==================== EMBEDDED MULTIPLAYER SERVER ====================
-class EmbeddedServerManager:
-    """Manages an embedded multiplayer server running in a background thread"""
-    
-    def __init__(self, host='127.0.0.1', port=9999):
-        self.server = None
-        self.host = host
-        self.port = port
-        self.thread = None
-        self.running = False
-    
-    def start(self):
-        """Start the server in a background thread"""
-        if self.running:
-            return True
-        
-        try:
-            self.server = MultiplayerServer(self.host, self.port)
-            self.running = True
-            self.thread = threading.Thread(target=self._run_server, daemon=True)
-            self.thread.start()
-            time.sleep(0.5)  # Give server time to start
-            return True
-        except Exception as e:
-            print(f"Error starting embedded server: {e}")
-            self.running = False
-            return False
-    
-    def _run_server(self):
-        """Run the server (internal - runs in thread)"""
-        try:
-            self.server.start()
-        except Exception as e:
-            print(f"Server error: {e}")
-        finally:
-            self.running = False
-    
-    def stop(self):
-        """Stop the server gracefully"""
-        if self.running and self.server:
-            self.server.shutdown()
-            self.running = False
-            # Wait briefly for thread to finish
-            if self.thread:
-                self.thread.join(timeout=2)
-
-
-# Global server manager
-_server_manager = None
-
-
 async def game_mode_selector(screen_width: int, screen_height: int) -> str:
-    """
-    Show game mode selection screen
-    Returns: "single", "multiplayer_host", "multiplayer_join", or "exit"
-    """
+    """Return one of: single, local_multiplayer, exit."""
     pygame.init()
     info = pygame.display.Info()
-    W = info.current_w
-    H = info.current_h
-    screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
-    pygame.display.set_caption("Linked List Snake - Mode Selection")
+    w = info.current_w
+    h = info.current_h
+    screen = pygame.display.set_mode((w, h), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
+    pygame.display.set_caption("Hizzz Snake - Mode Selection")
     clock = pygame.time.Clock()
-    FPS = 60
 
-    CELL = max(min(W // 28, H // 22), 18)
-    font_lg = pygame.font.SysFont("monospace", max(28, CELL + 6), bold=True)
-    font_md = pygame.font.SysFont("monospace", max(20, CELL), bold=True)
-    font_sm = pygame.font.SysFont("monospace", max(14, CELL - 6))
+    cell = max(min(w // 28, h // 22), 18)
+    font_lg = pygame.font.SysFont("monospace", max(28, cell + 6), bold=True)
+    font_md = pygame.font.SysFont("monospace", max(20, cell), bold=True)
+    font_sm = pygame.font.SysFont("monospace", max(14, cell - 6))
 
     selected = 0
-    modes = ["SINGLE PLAYER", "MULTIPLAYER HOST", "MULTIPLAYER JOIN"]
+    modes = ["SINGLE PLAYER", "LOCAL MULTIPLAYER"]
 
     while True:
-        dt = clock.tick(FPS) / 1000.0
+        clock.tick(60)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "exit"
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP or event.key == pygame.K_w:
-                    selected = (selected - 1) % 3
-                elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                    selected = (selected + 1) % 3
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    selected = (selected - 1) % len(modes)
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    selected = (selected + 1) % len(modes)
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                    if selected == 0:
-                        return "single"
-                    elif selected == 1:
-                        return "multiplayer_host"
-                    else:
-                        return "multiplayer_join"
+                    return "single" if selected == 0 else "local_multiplayer"
                 elif event.key == pygame.K_1:
                     return "single"
                 elif event.key == pygame.K_2:
-                    return "multiplayer_host"
-                elif event.key == pygame.K_3:
-                    return "multiplayer_join"
+                    return "local_multiplayer"
                 elif event.key == pygame.K_ESCAPE:
                     return "exit"
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = event.pos
-                button_height = 80
-                start_y = H // 2 - button_height
-                for i in range(3):
-                    y = start_y + i * (button_height + 20)
-                    if W // 2 - 150 <= mx <= W // 2 + 150 and y <= my <= y + button_height:
-                        selected = i
-                        return ["single", "multiplayer_host", "multiplayer_join"][i]
+                button_w = 340
+                button_h = 86
+                gap = 24
+                start_y = h // 2 - button_h
+                for i in range(len(modes)):
+                    y = start_y + i * (button_h + gap)
+                    x = w // 2 - button_w // 2
+                    if x <= mx <= x + button_w and y <= my <= y + button_h:
+                        return "single" if i == 0 else "local_multiplayer"
 
         # Render
         screen.fill((20, 22, 30))
 
-        title = font_lg.render("LINKED LIST SNAKE", True, (60, 210, 60))
-        screen.blit(title, (W // 2 - title.get_width() // 2, H // 4))
+        title = font_lg.render("HIZZZ", True, (60, 210, 60))
+        screen.blit(title, (w // 2 - title.get_width() // 2, h // 4))
 
-        subtitle = font_md.render("Select Mode", True, (140, 150, 165))
-        screen.blit(subtitle, (W // 2 - subtitle.get_width() // 2, H // 4 + 60))
+        subtitle = font_md.render("Choose Game Mode", True, (170, 190, 212))
+        screen.blit(subtitle, (w // 2 - subtitle.get_width() // 2, h // 4 + 60))
 
-        # Buttons
-        button_width = 300
-        button_height = 80
-        button_gap = 20
-        start_y = H // 2 - button_height
+        button_w = 340
+        button_h = 86
+        gap = 24
+        start_y = h // 2 - button_h
 
         for i, mode in enumerate(modes):
-            y = start_y + i * (button_height + button_gap)
-            x = W // 2 - button_width // 2
+            y = start_y + i * (button_h + gap)
+            x = w // 2 - button_w // 2
             is_selected = (i == selected)
 
-            color = (60, 210, 60) if is_selected else (80, 160, 80) if i == 0 else (100, 100, 200) if i == 1 else (200, 100, 100)
-            pygame.draw.rect(screen, color, (x, y, button_width, button_height), border_radius=15)
+            if i == 0:
+                color = (72, 165, 92) if not is_selected else (88, 210, 112)
+            else:
+                color = (70, 116, 210) if not is_selected else (90, 140, 245)
 
+            pygame.draw.rect(screen, color, (x, y, button_w, button_h), border_radius=15)
             if is_selected:
-                pygame.draw.rect(screen, (255, 255, 255), (x, y, button_width, button_height), 4, border_radius=15)
+                pygame.draw.rect(screen, (255, 255, 255), (x, y, button_w, button_h), 4, border_radius=15)
 
             text = font_md.render(mode, True, (255, 255, 255))
-            screen.blit(text, (x + button_width // 2 - text.get_width() // 2,
-                               y + button_height // 2 - text.get_height() // 2))
+            screen.blit(text, (x + button_w // 2 - text.get_width() // 2,
+                               y + button_h // 2 - text.get_height() // 2))
 
-        help_text = font_sm.render("Arrow Keys or 1/2/3 | ESC to Exit", True, (100, 100, 100))
-        screen.blit(help_text, (W // 2 - help_text.get_width() // 2, H - 50))
+        help_text = font_sm.render("Arrow Keys or 1/2 | Enter to select | ESC to Exit", True, (120, 132, 150))
+        screen.blit(help_text, (w // 2 - help_text.get_width() // 2, h - 50))
 
         pygame.display.flip()
         await asyncio.sleep(0)
 
 
-async def multiplayer_setup(mode: str) -> tuple:
-    """
-    Handle multiplayer setup (host or join)
-    Returns: (client, session_id, nickname, difficulty) or None if cancelled
-    """
+async def local_multiplayer_setup() -> tuple:
+    """Collect local multiplayer settings: P1 name, P2 name, difficulty."""
     pygame.init()
     info = pygame.display.Info()
-    W = info.current_w
-    H = info.current_h
-    screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
-    pygame.display.set_caption("Linked List Snake - Multiplayer Setup")
+    w = info.current_w
+    h = info.current_h
+    screen = pygame.display.set_mode((w, h), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
+    pygame.display.set_caption("Hizzz Snake - Local Multiplayer Setup")
     clock = pygame.time.Clock()
-    FPS = 60
 
-    CELL = max(min(W // 28, H // 22), 18)
-    font_lg = pygame.font.SysFont("monospace", max(28, CELL + 6), bold=True)
-    font_md = pygame.font.SysFont("monospace", max(20, CELL), bold=True)
-    font_sm = pygame.font.SysFont("monospace", max(14, CELL - 6))
+    cell = max(min(w // 28, h // 22), 18)
+    font_lg = pygame.font.SysFont("monospace", max(28, cell + 6), bold=True)
+    font_md = pygame.font.SysFont("monospace", max(20, cell), bold=True)
+    font_sm = pygame.font.SysFont("monospace", max(14, cell - 6))
 
-    # Input fields
-    nickname = ""
+    player1_name = "Player 1"
+    player2_name = "Player 2"
     selected_difficulty = "medium"
-    input_field = "nickname"
+    active_field = 0  # 0=p1, 1=p2, 2=difficulty
     status = ""
-    client = None
 
     while True:
-        dt = clock.tick(FPS) / 1000.0
+        clock.tick(60)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -215,147 +138,125 @@ async def multiplayer_setup(mode: str) -> tuple:
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if client:
-                        client.disconnect()
                     return None
 
-                elif event.key == pygame.K_RETURN:
-                    if not nickname:
-                        status = "Enter nickname first!"
-                    else:
-                        # Connect to server and create/join session
-                        if not client:
-                            client = MultiplayerClient()
-                            if not client.connect('localhost', 9999):
-                                status = "Cannot connect to server!"
-                                client = None
-                                continue
-
-                        if mode == "multiplayer_host":
-                            session_id = client.create_session(nickname, selected_difficulty)
-                            if session_id:
-                                return (client, session_id, nickname, selected_difficulty)
-                            else:
-                                status = "Failed to create session"
-                        else:
-                            # Show session list for join
-                            sessions = client.list_sessions()
-                            if sessions:
-                                # For now, join first available
-                                session_id = sessions[0]['session_id']
-                                if client.join_session(session_id, nickname):
-                                    return (client, session_id, nickname, selected_difficulty)
-                                else:
-                                    status = "Failed to join session"
-                            else:
-                                status = "No available sessions"
-
                 elif event.key == pygame.K_TAB:
-                    input_field = "difficulty" if input_field == "nickname" else "nickname"
+                    active_field = (active_field + 1) % 3
+
+                elif event.key == pygame.K_RETURN:
+                    p1 = player1_name.strip() or "Player 1"
+                    p2 = player2_name.strip() or "Player 2"
+                    if p1.lower() == p2.lower():
+                        status = "Player names must be different"
+                    else:
+                        return (p1, p2, selected_difficulty)
 
                 elif event.key == pygame.K_BACKSPACE:
-                    if input_field == "nickname":
-                        nickname = nickname[:-1]
+                    if active_field == 0:
+                        player1_name = player1_name[:-1]
+                    elif active_field == 1:
+                        player2_name = player2_name[:-1]
 
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
-                    if input_field == "difficulty":
+                    if active_field == 2:
                         idx = ["easy", "medium", "hard"].index(selected_difficulty)
                         selected_difficulty = ["easy", "medium", "hard"][(idx - 1) % 3]
 
                 elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                    if input_field == "difficulty":
+                    if active_field == 2:
                         idx = ["easy", "medium", "hard"].index(selected_difficulty)
                         selected_difficulty = ["easy", "medium", "hard"][(idx + 1) % 3]
 
-                elif event.unicode.isprintable() and input_field == "nickname" and len(nickname) < 20:
-                    nickname += event.unicode
+                elif event.unicode.isprintable():
+                    if active_field == 0 and len(player1_name) < 20:
+                        player1_name += event.unicode
+                    elif active_field == 1 and len(player2_name) < 20:
+                        player2_name += event.unicode
 
         # Render
         screen.fill((20, 22, 30))
 
-        title = font_lg.render("MULTIPLAYER SETUP", True, (60, 210, 60))
-        screen.blit(title, (W // 2 - title.get_width() // 2, H // 4))
+        title = font_lg.render("LOCAL MULTIPLAYER", True, (60, 210, 60))
+        screen.blit(title, (w // 2 - title.get_width() // 2, h // 4))
 
-        mode_text = "HOST A GAME" if mode == "multiplayer_host" else "JOIN A GAME"
-        mode_render = font_md.render(mode_text, True, (140, 150, 165))
-        screen.blit(mode_render, (W // 2 - mode_render.get_width() // 2, H // 4 + 60))
+        sub = font_sm.render("No hosting needed - both players play on this device", True, (165, 178, 196))
+        screen.blit(sub, (w // 2 - sub.get_width() // 2, h // 4 + 56))
 
-        # Nickname input
-        nickname_label = font_md.render("Nickname:", True, (200, 200, 200))
-        screen.blit(nickname_label, (W // 4, H // 2 - 40))
-        nickname_box = pygame.Rect(W // 4 + 200, H // 2 - 50, 300, 50)
-        pygame.draw.rect(screen, (60, 60, 80), nickname_box, border_radius=10)
-        if input_field == "nickname":
-            pygame.draw.rect(screen, (100, 200, 100), nickname_box, 3, border_radius=10)
-        nickname_text = font_sm.render(nickname + ("|" if input_field == "nickname" else ""), True, (255, 255, 255))
-        screen.blit(nickname_text, (nickname_box.x + 10, nickname_box.y + 15))
+        control_sub = font_sm.render("P1: Arrow + Numpad(8/4/2/6) | P2: WASD + IJKL", True, (145, 160, 180))
+        screen.blit(control_sub, (w // 2 - control_sub.get_width() // 2, h // 4 + 84))
+
+        rule_sub = font_sm.render("3:00 match | Winner = highest peak length", True, (145, 160, 180))
+        screen.blit(rule_sub, (w // 2 - rule_sub.get_width() // 2, h // 4 + 108))
+
+        # Player 1 input
+        p1_label = font_md.render("Player 1 Name:", True, (210, 210, 210))
+        screen.blit(p1_label, (w // 4, h // 2 - 70))
+        p1_box = pygame.Rect(w // 4 + 240, h // 2 - 80, 340, 52)
+        pygame.draw.rect(screen, (60, 60, 80), p1_box, border_radius=10)
+        if active_field == 0:
+            pygame.draw.rect(screen, (100, 200, 100), p1_box, 3, border_radius=10)
+        p1_text = font_sm.render(player1_name + ("|" if active_field == 0 else ""), True, (255, 255, 255))
+        screen.blit(p1_text, (p1_box.x + 10, p1_box.y + 15))
+
+        # Player 2 input
+        p2_label = font_md.render("Player 2 Name:", True, (210, 210, 210))
+        screen.blit(p2_label, (w // 4, h // 2 + 6))
+        p2_box = pygame.Rect(w // 4 + 240, h // 2 - 4, 340, 52)
+        pygame.draw.rect(screen, (60, 60, 80), p2_box, border_radius=10)
+        if active_field == 1:
+            pygame.draw.rect(screen, (100, 200, 100), p2_box, 3, border_radius=10)
+        p2_text = font_sm.render(player2_name + ("|" if active_field == 1 else ""), True, (255, 255, 255))
+        screen.blit(p2_text, (p2_box.x + 10, p2_box.y + 15))
 
         # Difficulty selection
-        difficulty_label = font_md.render("Difficulty:", True, (200, 200, 200))
-        screen.blit(difficulty_label, (W // 4, H // 2 + 40))
-        for i, diff in enumerate(["easy", "medium", "hard"]):
-            x = W // 4 + 200 + i * 120
-            y = H // 2 + 30
-            color = (60, 210, 60) if diff == selected_difficulty else (80, 100, 150)
-            if input_field == "difficulty" and diff == selected_difficulty:
-                pygame.draw.rect(screen, (100, 200, 100), (x, y, 100, 40), 3, border_radius=8)
-            diff_text = font_sm.render(diff.upper(), True, color)
-            screen.blit(diff_text, (x + 50 - diff_text.get_width() // 2, y + 20 - diff_text.get_height() // 2))
+        diff_label = font_md.render("Difficulty:", True, (210, 210, 210))
+        screen.blit(diff_label, (w // 4, h // 2 + 84))
 
-        # Status
+        for i, diff in enumerate(["easy", "medium", "hard"]):
+            x = w // 4 + 240 + i * 126
+            y = h // 2 + 78
+            color = (60, 210, 60) if diff == selected_difficulty else (80, 100, 150)
+            rect = pygame.Rect(x, y, 110, 42)
+            if active_field == 2 and diff == selected_difficulty:
+                pygame.draw.rect(screen, (100, 200, 100), rect, 3, border_radius=8)
+            diff_text = font_sm.render(diff.upper(), True, color)
+            screen.blit(diff_text, (x + 55 - diff_text.get_width() // 2, y + 21 - diff_text.get_height() // 2))
+
         if status:
             status_text = font_sm.render(status, True, (220, 60, 60))
-            screen.blit(status_text, (W // 2 - status_text.get_width() // 2, H - 100))
+            screen.blit(status_text, (w // 2 - status_text.get_width() // 2, h - 104))
 
-        help_text = font_sm.render("TAB: Switch | Arrow Keys: Difficulty | ENTER: Continue | ESC: Back", True, (100, 100, 100))
-        screen.blit(help_text, (W // 2 - help_text.get_width() // 2, H - 50))
+        help_text = font_sm.render(
+            "TAB: Switch Field | Arrow Left/Right: Difficulty | ENTER: Start Match | ESC: Back",
+            True,
+            (110, 120, 136),
+        )
+        screen.blit(help_text, (w // 2 - help_text.get_width() // 2, h - 54))
 
         pygame.display.flip()
         await asyncio.sleep(0)
 
 
 async def main_with_multiplayer():
-    """
-    Main game loop with multiplayer support
-    Automatically starts an embedded multiplayer server
-    """
-    global _server_manager
-    
+    """Main launcher loop for single-player and local multiplayer."""
     pygame.init()
-    
-    # Start embedded multiplayer server
-    _server_manager = EmbeddedServerManager('127.0.0.1', 9999)
-    if not _server_manager.start():
-        print("Warning: Could not start multiplayer server. Multiplayer mode may not work.")
-    else:
-        print("✓ Multiplayer server started on 127.0.0.1:9999")
-    
-    try:
-        while True:
-            # Show mode selector
-            mode = await game_mode_selector(1920, 1080)
 
-            if mode == "exit":
-                pygame.quit()
-                sys.exit()
+    while True:
+        mode = await game_mode_selector(1920, 1080)
 
-            elif mode == "single":
-                # Run single player game
-                await main()
+        if mode == "exit":
+            pygame.quit()
+            sys.exit()
 
-            elif mode in ("multiplayer_host", "multiplayer_join"):
-                # Setup multiplayer
-                result = await multiplayer_setup(mode)
-                if result:
-                    client, session_id, nickname, difficulty = result
-                    # Run multiplayer game
-                    await multiplayer_mode(client, mode == "multiplayer_host", nickname, difficulty, 1920, 1080, 40)
-    
-    finally:
-        # Ensure server is stopped when exiting
-        if _server_manager and _server_manager.running:
-            _server_manager.stop()
-            print("✓ Multiplayer server shut down")
+        if mode == "single":
+            await main()
+            continue
+
+        if mode == "local_multiplayer":
+            result = await local_multiplayer_setup()
+            if result:
+                p1_name, p2_name, difficulty = result
+                await multiplayer_mode(p1_name, p2_name, difficulty, 1920, 1080, 40)
 
 
 if __name__ == "__main__":

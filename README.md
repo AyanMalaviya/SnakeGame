@@ -1,14 +1,14 @@
-# Linked List Snake Game
+# Hizzz Snake Game
 
 A visually stunning Snake game written in Python with Pygame, featuring a doubly-linked list data structure for game mechanics. Fully compatible with both Windows and Linux.
 
 ## Features
 
 - 🐍 Classic snake gameplay with modern visuals
-- 👥 **NEW: 2-Player Multiplayer** - Play online with a friend!
+- 👥 **2-Player Local Multiplayer** - Play on the same device (no hosting/server)
 - 🎮 Three difficulty levels (Easy, Medium, Hard)
 - 🎨 Beautiful gradient graphics and animations
-- ⌨️ Keyboard controls (Arrow Keys / WASD)
+- ⌨️ Extended keyboard controls (Arrow, WASD, Numpad, IJKL)
 - 📱 Mobile-friendly D-pad controls and swipe support
 - ⚙️ Cross-platform compatibility (Windows & Linux)
 - 💾 Optimized data structures (Doubly-Linked List)
@@ -42,44 +42,27 @@ A visually stunning Snake game written in Python with Pygame, featuring a doubly
    python3 main.py
    ```
 
-### Multiplayer Mode (NEW!)
+### Multiplayer Mode
 
-**No server setup needed!** The multiplayer server is now **embedded** in the game executable.
+This project now uses **local multiplayer only** (no host/join/server setup).
 
-Just run:
+Run:
 ```bash
 python3 main_multiplayer.py
 ```
 
-Then from the menu, select:
-- **SINGLE PLAYER**: Classic single-player experience
-- **MULTIPLAYER HOST**: Create a game session
-- **MULTIPLAYER JOIN**: Join someone's session
+Then select:
+- **SINGLE PLAYER**
+- **LOCAL MULTIPLAYER**
 
-**On the same machine or network:**
-- Launch the game on two computers (or two terminals)
-- One player selects "HOST", the other selects "JOIN"
-- Both join automatically with 3-second countdown
-- Use Arrow Keys (P1) and WASD (P2) to control snakes
+In local multiplayer:
+- Player 1 uses Arrow Keys or Numpad `8` `4` `2` `6`
+- Player 2 uses `W` `A` `S` `D` or `I` `J` `K` `L`
+- Snakes spawn from clockwise corners (ready for future 4-player expansion)
+- 3-minute match, winner is highest peak length (no multiplayer points)
+- Apple eaten with exactly 1 input gap grants extra length
 
-**Full Details:** See [MULTIPLAYER_SETUP.md](MULTIPLAYER_SETUP.md)
-
-**For Developers:** See [MULTIPLAYER_GUIDE.md](MULTIPLAYER_GUIDE.md) and [MULTIPLAYER_IMPLEMENTATION.md](MULTIPLAYER_IMPLEMENTATION.md)
-
-### Windows
-
-#### Method 1: Direct Execution
-```bash
-pip install pygame
-python main.py
-```
-
-#### Method 2: PyInstaller Executable
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --hidden-import=pygame main.py
-# Run the .exe from dist/ folder
-```
+See [MULTIPLAYER_GUIDE.md](MULTIPLAYER_GUIDE.md) for details.
 
 ### Linux
 
@@ -114,7 +97,7 @@ sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
 pip install pyinstaller pygame
 
 # 2. Build with PyInstaller
-pyinstaller --onefile --windowed --hidden-import=pygame main.py
+pyinstaller --onefile --windowed --hidden-import=pygame main_multiplayer.py
 
 # 3. Create AppImage using provided script
 bash build_appimage_linuxdeploy.sh
@@ -160,7 +143,9 @@ bash build_appimage_linuxdeploy.sh
 ## Controls
 
 ### Keyboard Controls
-- **Arrow Keys** or **WASD** - Move snake
+- **Single Player**: Arrow Keys or WASD
+- **Local Multiplayer P1**: Arrow Keys or Numpad `8` `4` `2` `6`
+- **Local Multiplayer P2**: `W` `A` `S` `D` or `I` `J` `K` `L`
 - **P** - Pause/Resume
 - **ESC** - Back to menu
 - **R** - Restart (game over screen)
@@ -174,7 +159,10 @@ bash build_appimage_linuxdeploy.sh
 
 ### Scoring
 - Eat apples: **+10 points** (×difficulty multiplier)
-- Combo bonus: +1 point for eating 2 apples within 3 moves
+- Combo bonus (input-based):
+   - Next apple within 1 input: **+20**
+   - Next apple within 2 inputs: **+10**
+   - Next apple within 3 inputs: **+5**
 - Difficulty multipliers:
   - Easy: 1×
   - Medium: 2×
@@ -183,6 +171,9 @@ bash build_appimage_linuxdeploy.sh
 ### Collision Rules
 - Hitting stones → Game Over
 - Hitting your own body → Game Over
+- Multiplayer head-to-body bite → bitten snake is cut from bite point, biter gains pending length
+- Multiplayer head-to-head clash → both snakes are reduced to half length
+- Multiplayer stone/self collision → that snake is reduced to half length
 - Screen wraps around (portals on edges)
 
 ### Data Structure
@@ -208,32 +199,13 @@ chmod +x build_appimage_linuxdeploy.sh
 # Creates: Linked_List_Snake-x86_64.AppImage
 ```
 
-### For Windows (Create Standalone EXE)
-
-**Quick Method:**
-```bash
-python build_windows_exe.py
+### For Windows (Build From Project Venv)
+```bat
+cd game
+build_windows_exe.bat
 ```
 
-This creates `dist\Linked List Snake.exe` - a standalone executable that needs no installation!
-
-**Or use Batch Script:**
-Double-click `build_windows_exe.bat`
-
-**Full Guide:** See [WINDOWS_BUILD_GUIDE.md](WINDOWS_BUILD_GUIDE.md)
-
-**Optional: Create Windows Installer**
-1. Download NSIS from https://nsis.sourceforge.io/
-2. Right-click `linked-list-snake-installer.nsi`
-3. Select "Compile NSIS Script"
-4. Creates `Linked_List_Snake_Installer.exe`
-
-### For macOS
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed main.py
-# Creates standalone .app bundle in dist/ folder
-```
+This creates `dist\Hizzz Snake.exe` and uses `..\venv\Scripts\pyinstaller.exe`.
 
 ## Troubleshooting
 

@@ -1,136 +1,73 @@
 #!/usr/bin/env python3
 """
-Two-player multiplayer game logic for Linked List Snake
-Handles collision detection, scoring, and multiplayer-specific rules
+Two-player multiplayer game logic for Snake Rush.
+
+Rules implemented here:
+- Head-on-body: bitten snake is cut at bite point.
+- Head-to-head: both snakes are reduced to half length.
 """
 
-import math
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 class MultiplayerGameLogic:
-    """Handles two-player game logic and collision detection"""
+    """Helpers for local multiplayer collision and length updates."""
 
     @staticmethod
-    def check_head_collision(p1_head: Tuple[int, int], p2_head: Tuple[int, int]) -> Tuple[bool, bool]:
+    def get_body_hit_index(
+        attacker_head: Tuple[int, int],
+        victim_positions: list,
+    ) -> Optional[int]:
         """
-        Check head-to-head collision
-        Returns: (p1_dies, p2_dies)
-        """
-        if p1_head == p2_head:
-            # Both heads collide → both die
-            return (True, True)
-        return (False, False)
+        Return the victim body index hit by attacker head.
 
-    @staticmethod
-    def check_head_body_collision(
-        head_pos: Tuple[int, int],
-        body_positions: list,
-        head_direction: Tuple[int, int]
-    ) -> Optional[str]:
+        Index is in victim_positions (head=0). Returns None if no body hit.
         """
-        Check if head collided with body
-        Returns: 'front' if collision with front face, 'side' if side collision, None if no collision
-        """
-        if not body_positions:
-            return None
-
-        for i, segment in enumerate(body_positions[:-1]):  # Skip tail
-            if head_pos == segment:
-                # Check if it's front face or side collision
-                if i == 0:  # Head of body (front face)
-                    return 'front'
-                else:
-                    # Check direction to determine if it's side collision
-                    return 'side'
+        for idx, segment in enumerate(victim_positions[1:], start=1):
+            if attacker_head == segment:
+                return idx
         return None
 
     @staticmethod
-    def evaluate_multiplayer_collision(
-        p1_head: Tuple[int, int],
-        p1_body: list,
-        p1_direction: Tuple[int, int],
-        p2_head: Tuple[int, int],
-        p2_body: list,
-        p2_direction: Tuple[int, int],
-        cols: int,
-        rows: int
-    ) -> Tuple[bool, bool, Optional[str]]:
+    def trim_snake_to_length(snake, keep_length: int) -> int:
         """
-        Evaluate all collisions in two-player mode
-        Returns: (p1_dies, p2_dies, collision_type)
-        
-        Collision types:
-        - 'head_collision': both heads collide → both die
-        - 'p1_eats_p2_tail': p1 dies (ate p2's tail)
-        - 'p2_eats_p1_tail': p2 dies (ate p1's tail)
-        - 'p1_front_p2_side': p2 dies (p1 hits p2's front face)
-        - 'p2_front_p1_side': p1 dies (p2 hits p1's front face)
-        - None: no collision
+        Trim snake to keep_length and return removed segment count.
+
+        keep_length is clamped to at least 1.
         """
+        if keep_length < 1:
+            keep_length = 1
+        if keep_length >= snake.length:
+            return 0
 
-        # Rule 1: Head-to-head collision
-        head_collision = p1_head == p2_head
-        if head_collision:
-            return (True, True, 'head_collision')
+        cursor = snake.head
+        for _ in range(keep_length - 1):
+            if cursor.next is None:
+                break
+            cursor = cursor.next
 
-        # Rule 2: Head eating opponent's tail
-        if p1_head == p2_body[-1]:  # p1 ate p2's tail
-            return (False, True, 'p1_eats_p2_tail')
+        removed = snake.length - keep_length
 
-        if p2_head == p1_body[-1]:  # p2 ate p1's tail
-            return (True, False, 'p2_eats_p1_tail')
-
-        # Rule 3: Head-to-body collision (front vs side)
-        # Check if p1's head hit p2's body
-        p2_collision = MultiplayerGameLogic.check_head_body_collision(p1_head, p2_body, p1_direction)
-        if p2_collision == 'front':
-            # p1 hit p2's front face → p2 dies
-            return (False, True, 'p1_front_p2_front')
-        elif p2_collision == 'side':
-            # p1 hit p2's side → p1 dies
-            return (True, False, 'p1_side_p2_body')
-
-        # Check if p2's head hit p1's body
-        p1_collision = MultiplayerGameLogic.check_head_body_collision(p2_head, p1_body, p2_direction)
-        if p1_collision == 'front':
-            # p2 hit p1's front face → p1 dies
-            return (True, False, 'p2_front_p1_front')
-        elif p1_collision == 'side':
-            # p2 hit p1's side → p2 dies
-            return (False, True, 'p2_side_p1_body')
-
-        return (False, False, None)
+        # Keep only the first keep_length nodes.
+        cursor.next = None
+        snake.tail = cursor
+        snake.length = keep_length
+        return removed
 
     @staticmethod
-    def determine_winner(
-        p1_length: int,
-        p2_length: int,
-        p1_alive: bool,
-        p2_alive: bool,
-        killer_id: Optional[str] = None
-    ) -> Optional[str]:
+    def apply_head_collision_halving(snake_a, snake_b) -> bool:
         """
-        Determine the winner based on game end conditions
-        
-        Rules:
-        - If one player killed the other: killer wins
-        - If both died same time: longer player wins
-        - If one died: other wins
+        Apply head-to-head rule: both snakes become half length.
+
+        Returns True when a head-to-head collision happened.
         """
-        if killer_id:
-            return killer_id
+        a_head = (snake_a.head.x, snake_a.head.y)
+        b_head = (snake_b.head.x, snake_b.head.y)
+        if a_head != b_head:
+            return False
 
-        if not p1_alive and not p2_alive:
-            # Both dead → longer player wins
-            return 'p1' if p1_length > p2_length else 'p2'
-
-        if not p1_alive:
-            return 'p2'
-
-        if not p2_alive:
-            return 'p1'
-
-        return None
+        MultiplayerGameLogic.trim_snake_to_length(snake_a, max(1, snake_a.length // 2))
+        MultiplayerGameLogic.trim_snake_to_length(snake_b, max(1, snake_b.length // 2))
+        return True
 
     @staticmethod
     def check_self_collision(body_positions: list) -> bool:

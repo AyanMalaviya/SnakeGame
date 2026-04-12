@@ -8,12 +8,26 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
 
 # VS Code settings
 .vscode/
 
-# Pygame cache
-*.pyc
+# Build and packaging outputs
+build/
+dist/
+*.spec
+*.toc
+*.pyz
+warn-*.txt
+xref-*.html
+
+# Linux packaging artifacts
+*.AppImage
+*.AppDir/
+linuxdeploy-*.AppImage
+appimagetool-*.AppImage
 
 # OS files
 .DS_Store
@@ -22,3 +36,6 @@ desktop.ini
 
 # Logs
 *.log
+
+# Temporary or accidental dump files
+=2.1.0

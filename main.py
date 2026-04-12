@@ -7,7 +7,7 @@ import asyncio
 import os
 
 # ==========================================
-# DOUBLY LINKED LIST DATA STRUCTURE
+# SNAKE BODY DATA STRUCTURE
 # ==========================================
 class Node:
     def __init__(self, x, y):
@@ -216,14 +216,16 @@ async def main():
     W    = info.current_w
     H    = info.current_h
     screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
-    pygame.display.set_caption("Linked List Snake")
+    pygame.display.set_caption("Hizzz Snake")
     clock = pygame.time.Clock()
     FPS   = 60
 
     # Dynamic cell size -- scales to any screen resolution
     CELL = max(min(W // 28, H // 22), 18)
     COLS = W // CELL
-    ROWS = H // CELL
+    TOP_UI_SPACE = max(58, min(H // 12, CELL * 2))
+    ROWS = max(8, (H - TOP_UI_SPACE) // CELL)
+    PLAYFIELD_Y = H - (ROWS * CELL)
 
     # Fonts scaled to cell size - using cross-platform fonts
     font_names = ["monospace", "dejavu sans mono", "courier new", "consolas"]
@@ -253,7 +255,7 @@ async def main():
     tails = {d: pygame.transform.rotate(img_tail, a) for d, a in DIR_ANGLE.items()}
 
     # Grid dot surface -- rendered once, blit cheaply every frame
-    grid_surf = pygame.Surface((W, H), pygame.SRCALPHA)
+    grid_surf = pygame.Surface((W, ROWS * CELL), pygame.SRCALPHA)
     for gx in range(COLS):
         for gy in range(ROWS):
             pygame.draw.circle(grid_surf, (52, 56, 65),
@@ -277,9 +279,9 @@ async def main():
     stones        = set()
     SPEED         = 10.0
     bonus_points_total = 0
-    bonus_moves_left = 0
-    move_count    = 0
-    last_apple_move = None
+    input_count   = 0
+    last_apple_input = None
+    inputs_since_last_apple = 0
     swipe_start   = None
     SWIPE_MIN     = CELL * 1.5
     is_paused     = False
@@ -297,19 +299,61 @@ async def main():
                                       H // 2 + 26 + PAUSE_BTN_H + PAUSE_BTN_GAP,
                                       PAUSE_BTN_W, PAUSE_BTN_H)
 
+    def get_input_bonus(input_gap):
+        if input_gap <= 1:
+            return 20
+        if input_gap == 2:
+            return 10
+        if input_gap == 3:
+            return 5
+        return 0
+
+    def queue_direction(next_dx, next_dy):
+        nonlocal ndx, ndy, input_count, inputs_since_last_apple
+        if (dx != 0 or dy != 0) and next_dx == -dx and next_dy == -dy:
+            return False
+        if ndx == next_dx and ndy == next_dy:
+            return False
+        ndx, ndy = next_dx, next_dy
+        input_count += 1
+        if last_apple_input is None:
+            inputs_since_last_apple = 0
+        else:
+            inputs_since_last_apple = input_count - last_apple_input
+        return True
+
+    def get_menu_layout():
+        card_w = min(920, W - 48)
+        card_h = min(620, H - 48)
+        card_x = W // 2 - card_w // 2
+        card_y = H // 2 - card_h // 2
+
+        diff_w = min(220, (card_w - 80) // 3)
+        diff_h = 64
+        gap = max(12, (card_w - (diff_w * 3)) // 4)
+        diff_y = card_y + 218
+        start_x = card_x + gap
+
+        diff_rects = {}
+        for i, dk in enumerate(DIFF_KEYS):
+            diff_rects[dk] = pygame.Rect(start_x + i * (diff_w + gap), diff_y, diff_w, diff_h)
+
+        play_rect = pygame.Rect(W // 2 - 120, diff_y + 102, 240, 58)
+        return pygame.Rect(card_x, card_y, card_w, card_h), diff_rects, play_rect
+
     def init_game(diff):
         nonlocal snake, dx, dy, ndx, ndy, progress, score
         nonlocal tail_dir, apple_x, apple_y, stones, SPEED, is_paused
-        nonlocal bonus_points_total, bonus_moves_left
-        nonlocal move_count, last_apple_move
+        nonlocal bonus_points_total, input_count
+        nonlocal last_apple_input, inputs_since_last_apple
 
         cfg   = DIFFICULTIES[diff]
         SPEED = cfg["speed"]
         score = 0
         bonus_points_total = 0
-        bonus_moves_left = 0
-        move_count = 0
-        last_apple_move = None
+        input_count = 0
+        last_apple_input = None
+        inputs_since_last_apple = 0
         is_paused = False
         progress  = 0.0
         dx = dy   = 0
@@ -352,13 +396,11 @@ async def main():
                         state = "game"
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
-                    for i, dk in enumerate(DIFF_KEYS):
-                        bx = W//2 + (i - 1) * (W//4)
-                        by, bw, bh = H//2 + 30, W//5, 60
-                        if bx - bw//2 <= mx <= bx + bw//2 and by <= my <= by + bh:
+                    _, diff_rects, play_rect = get_menu_layout()
+                    for dk, drect in diff_rects.items():
+                        if drect.collidepoint(mx, my):
                             selected_diff = dk
-                    # Play button hit area
-                    if abs(mx - W//2) < 80 and H//2 + 104 <= my <= H//2 + 156:
+                    if play_rect.collidepoint(mx, my):
                         init_game(selected_diff)
                         state = "game"
 
@@ -372,10 +414,10 @@ async def main():
                         state = "menu"
                     # Arrow Keys + WASD both supported
                     elif not is_paused:
-                        if   event.key in (pygame.K_UP,    pygame.K_w) and dy != 1:  ndx, ndy = 0, -1
-                        elif event.key in (pygame.K_DOWN,  pygame.K_s) and dy != -1: ndx, ndy = 0,  1
-                        elif event.key in (pygame.K_LEFT,  pygame.K_a) and dx != 1:  ndx, ndy = -1, 0
-                        elif event.key in (pygame.K_RIGHT, pygame.K_d) and dx != -1: ndx, ndy =  1, 0
+                        if   event.key in (pygame.K_UP,    pygame.K_w): queue_direction(0, -1)
+                        elif event.key in (pygame.K_DOWN,  pygame.K_s): queue_direction(0, 1)
+                        elif event.key in (pygame.K_LEFT,  pygame.K_a): queue_direction(-1, 0)
+                        elif event.key in (pygame.K_RIGHT, pygame.K_d): queue_direction(1, 0)
 
                 # D-pad tap OR start swipe
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -396,10 +438,14 @@ async def main():
                         continue
 
                     hit = hit_dpad(mx, my, dpad_pos, BTN_R)
-                    if   hit == "up"    and dy != 1:  ndx, ndy = 0, -1
-                    elif hit == "down"  and dy != -1: ndx, ndy = 0,  1
-                    elif hit == "left"  and dx != 1:  ndx, ndy = -1, 0
-                    elif hit == "right" and dx != -1: ndx, ndy =  1, 0
+                    if   hit == "up":
+                        queue_direction(0, -1)
+                    elif hit == "down":
+                        queue_direction(0, 1)
+                    elif hit == "left":
+                        queue_direction(-1, 0)
+                    elif hit == "right":
+                        queue_direction(1, 0)
                     else:
                         swipe_start = (mx, my)
 
@@ -410,11 +456,15 @@ async def main():
                     sdy    = ey - swipe_start[1]
                     if math.hypot(sdx, sdy) > SWIPE_MIN:
                         if abs(sdx) > abs(sdy):
-                            if sdx > 0 and dx != -1: ndx, ndy =  1, 0
-                            elif sdx < 0 and dx != 1: ndx, ndy = -1, 0
+                            if sdx > 0:
+                                queue_direction(1, 0)
+                            elif sdx < 0:
+                                queue_direction(-1, 0)
                         else:
-                            if sdy > 0 and dy != -1: ndx, ndy = 0,  1
-                            elif sdy < 0 and dy != 1: ndx, ndy = 0, -1
+                            if sdy > 0:
+                                queue_direction(0, 1)
+                            elif sdy < 0:
+                                queue_direction(0, -1)
                     swipe_start = None
 
             # ---------- GAME OVER ----------
@@ -435,52 +485,63 @@ async def main():
         # RENDER: MENU
         # ==========================================
         if state == "menu":
-            screen.fill((20, 22, 30))
+            screen.fill((12, 19, 30))
 
-            title = font_lg.render("LINKED LIST SNAKE", True, (60, 210, 60))
-            screen.blit(title, (W//2 - title.get_width()//2, H//4))
+            card_rect, diff_rects, play_rect = get_menu_layout()
+            draw_button(screen, card_rect.x, card_rect.y, card_rect.w, card_rect.h,
+                        (28, 46, 66), alpha=220, radius=22)
+            pygame.draw.rect(screen, (120, 188, 196), card_rect, 2, border_radius=22)
 
-            sub = font_sm.render("Select Difficulty", True, (140, 150, 165))
-            screen.blit(sub, (W//2 - sub.get_width()//2, H//4 + 52))
+            title = font_lg.render("HIZZZ", True, (60, 210, 60))
+            screen.blit(title, (W // 2 - title.get_width() // 2, card_rect.y + 44))
 
-            for i, dk in enumerate(DIFF_KEYS):
-                cfg  = DIFFICULTIES[dk]
-                bx   = W//2 + (i - 1) * (W//4)
-                by   = H//2 + 30
-                bw, bh = W//5, 60
+            sub = font_md.render("Select Difficulty", True, (184, 206, 225))
+            screen.blit(sub, (W // 2 - sub.get_width() // 2, card_rect.y + 102))
+
+            combo_line = font_sm.render(
+                "Input combo bonus: 1 input +20, 2 inputs +10, 3 inputs +5",
+                True,
+                (132, 191, 182),
+            )
+            screen.blit(combo_line, (W // 2 - combo_line.get_width() // 2, card_rect.y + 146))
+
+            for dk in DIFF_KEYS:
+                cfg = DIFFICULTIES[dk]
+                drect = diff_rects[dk]
                 is_sel = (dk == selected_diff)
 
-                draw_button(screen, bx - bw//2, by, bw, bh,
-                            cfg["color"], alpha=210 if is_sel else 60, radius=14)
+                draw_button(screen, drect.x, drect.y, drect.w, drect.h,
+                            cfg["color"], alpha=215 if is_sel else 72, radius=14)
                 if is_sel:
-                    pygame.draw.rect(screen, cfg["color"],
-                                     (bx - bw//2, by, bw, bh), 3, border_radius=14)
+                    pygame.draw.rect(screen, (245, 245, 245), drect, 3, border_radius=14)
 
                 lbl = font_md.render(cfg["label"], True,
-                                     (255,255,255) if is_sel else (160,160,160))
-                screen.blit(lbl, (bx - lbl.get_width()//2, by + bh//2 - lbl.get_height()//2))
+                                     (255, 255, 255) if is_sel else (176, 184, 196))
+                screen.blit(lbl, (drect.centerx - lbl.get_width() // 2,
+                                  drect.centery - lbl.get_height() // 2))
 
-                hint = font_sm.render("x" + str(cfg["score_mult"]) + " score", True,
-                                      (210,210,210) if is_sel else (100,100,100))
-                screen.blit(hint, (bx - hint.get_width()//2, by + bh + 6))
+                hint = font_sm.render("x" + str(cfg["score_mult"]) + " apple score", True,
+                                      (220, 225, 230) if is_sel else (108, 122, 138))
+                screen.blit(hint, (drect.centerx - hint.get_width() // 2, drect.bottom + 6))
 
-            # Play button
-            draw_button(screen, W//2 - 80, H//2 + 104, 160, 52, (60, 200, 60), alpha=210)
-            play_txt = font_md.render(">> PLAY", True, (255, 255, 255))
-            screen.blit(play_txt, (W//2 - play_txt.get_width()//2,
-                                   H//2 + 104 + 26 - play_txt.get_height()//2))
+            draw_button(screen, play_rect.x, play_rect.y, play_rect.w, play_rect.h,
+                        (232, 164, 40), alpha=235, radius=12)
+            pygame.draw.rect(screen, (255, 225, 166), play_rect, 2, border_radius=12)
+            play_txt = font_md.render("PLAY", True, (24, 32, 42))
+            screen.blit(play_txt, (play_rect.centerx - play_txt.get_width() // 2,
+                                   play_rect.centery - play_txt.get_height() // 2))
 
-            # Controls hints -- all plain ASCII
             hints = [
-                "Left / Right or A / D  :  Switch Difficulty",
-                "Arrow Keys / WASD      :  Move Snake",
-                "Swipe or D-Pad         :  Mobile Controls",
-                "P                      :  Pause / Resume",
-                "ESC                    :  Back to Menu",
+                "Left / Right or A / D: Switch difficulty",
+                "Arrow Keys / WASD + swipe / D-pad: Move",
+                "P: Pause or resume    ESC: Back to menu",
             ]
             for j, h in enumerate(hints):
-                ht = font_sm.render(h, True, (80, 95, 115))
-                screen.blit(ht, (W//2 - ht.get_width()//2, H * 3//4 + j * 28))
+                ht = font_sm.render(h, True, (112, 132, 152))
+                screen.blit(ht, (W // 2 - ht.get_width() // 2, card_rect.bottom - 104 + j * 28))
+
+            dev = font_sm.render("Developed by Ayan Malaviya", True, (106, 126, 146))
+            screen.blit(dev, (W // 2 - dev.get_width() // 2, card_rect.bottom - 24))
 
         # ==========================================
         # RENDER: GAME
@@ -501,7 +562,6 @@ async def main():
 
                 new_x = (snake.head.x + dx) % COLS
                 new_y = (snake.head.y + dy) % ROWS
-                move_count += 1
 
                 # Rule 1: Stone collision
                 if (new_x, new_y) in stones:
@@ -511,23 +571,20 @@ async def main():
                 ate_apple = (new_x == apple_x and new_y == apple_y)
                 if ate_apple:
                     score += 10 * DIFFICULTIES[selected_diff]["score_mult"]
-                    # Combo bonus: second apple eaten within 2 moves grants +1.
-                    if last_apple_move is not None and (move_count - last_apple_move) < 3:
-                        score += 1
-                        bonus_points_total += 1
-                    last_apple_move = move_count
+                    if last_apple_input is not None:
+                        bonus_points_total += get_input_bonus(input_count - last_apple_input)
+                    last_apple_input = input_count
+                    inputs_since_last_apple = 0
                     while True:
                         apple_x = random.randint(0, COLS - 1)
                         apple_y = random.randint(0, ROWS - 1)
                         if (apple_x, apple_y) not in stones:
                             break
 
-                if last_apple_move is None:
-                    bonus_moves_left = 0
-                else:
-                    bonus_moves_left = max(0, 2 - (move_count - last_apple_move))
+                if last_apple_input is not None:
+                    inputs_since_last_apple = input_count - last_apple_input
 
-                # Move the doubly linked list one cell
+                # Move the snake body one cell
                 snake.move(new_x, new_y, ate_apple)
 
                 # Rule 3: Self-collision
@@ -539,45 +596,48 @@ async def main():
 
             # Background
             screen.fill((40, 44, 52))
-            screen.blit(grid_surf, (0, 0))
+            pygame.draw.rect(screen, (24, 34, 48), (0, 0, W, PLAYFIELD_Y))
+            screen.blit(grid_surf, (0, PLAYFIELD_Y))
+            pygame.draw.line(screen, (86, 124, 138), (0, PLAYFIELD_Y), (W, PLAYFIELD_Y), 1)
 
             # Stones
             for sx, sy in stones:
-                screen.blit(img_stone, (sx * CELL, sy * CELL))
+                screen.blit(img_stone, (sx * CELL, PLAYFIELD_Y + sy * CELL))
 
             # Apple with breathing pulse
             pulse        = 0.05 * math.sin(pygame.time.get_ticks() * 0.005)
             apple_size   = int(CELL * (1.0 + pulse))
             apple_scaled = pygame.transform.smoothscale(img_apple, (apple_size, apple_size))
             off = (CELL - apple_size) // 2
-            screen.blit(apple_scaled, (apple_x * CELL + off, apple_y * CELL + off))
+            screen.blit(apple_scaled, (apple_x * CELL + off, PLAYFIELD_Y + apple_y * CELL + off))
 
-            # Snake -- traverse linked list, interpolate each segment smoothly
+            # Snake -- traverse body segments, interpolate each segment smoothly
             positions      = snake.get_positions()
             next_positions = [(nx_head, ny_head)] + positions[:-1]
 
             for i, ((cx, cy), (nxt_x, nxt_y)) in enumerate(zip(positions, next_positions)):
                 rx, ry = interpolate(cx, cy, nxt_x, nxt_y, progress, COLS, ROWS, CELL)
+                draw_y = ry + PLAYFIELD_Y
                 if i == 0:
-                    screen.blit(heads.get((dx, dy), img_head), (rx, ry))
+                    screen.blit(heads.get((dx, dy), img_head), (rx, draw_y))
                 elif i == len(positions) - 1:
                     if len(positions) >= 2:
                         prev_x, prev_y = positions[-2]
                         tdx = max(-1, min(1, prev_x - cx))
                         tdy = max(-1, min(1, prev_y - cy))
                         tail_dir = (tdx, tdy)
-                    screen.blit(tails.get(tail_dir, img_tail), (rx, ry))
+                    screen.blit(tails.get(tail_dir, img_tail), (rx, draw_y))
                 else:
-                    screen.blit(img_body, (rx, ry))
+                    screen.blit(img_body, (rx, draw_y))
 
             # D-pad overlay
             draw_dpad(screen, dpad_pos, BTN_R)
 
             # HUD
             diff_cfg = DIFFICULTIES[selected_diff]
-            badge_w = 90
-            draw_button(screen, 8, 8, badge_w, 28, diff_cfg["color"], alpha=185, radius=8)
             badge_txt = font_sm.render(diff_cfg["label"], True, (255, 255, 255))
+            badge_w = max(96, badge_txt.get_width() + 28)
+            draw_button(screen, 8, 8, badge_w, 28, diff_cfg["color"], alpha=185, radius=8)
             screen.blit(badge_txt, (8 + badge_w//2 - badge_txt.get_width()//2,
                                     8 + 14 - badge_txt.get_height()//2))
 
@@ -585,9 +645,12 @@ async def main():
                                  True, (190, 195, 210))
             screen.blit(hud, (badge_w + 18, 8))
 
-            bonus_hud = font_sm.render("Bonus Moves Left: " + str(bonus_moves_left) +
-                                       "   Bonus Points: +" + str(bonus_points_total),
-                                       True, (140, 208, 150))
+            if last_apple_input is None:
+                bonus_line = "Combo Window: 3 inputs"
+            else:
+                bonus_line = "Combo Window: " + str(max(0, 3 - inputs_since_last_apple)) + " inputs"
+            bonus_hud = font_sm.render(bonus_line + " | Bonus: +" + str(bonus_points_total),
+                                       True, (140, 208, 180))
             screen.blit(bonus_hud, (badge_w + 18, 34))
 
             if is_paused:
@@ -624,16 +687,17 @@ async def main():
         elif state == "gameover":
             screen.fill((15, 15, 25))
             diff_cfg = DIFFICULTIES[selected_diff]
+            final_score = score + bonus_points_total
 
             go = font_lg.render("GAME OVER", True, (220, 60, 60))
             screen.blit(go, (W//2 - go.get_width()//2, H//2 - 90))
 
-            sc = font_md.render("Score: " + str(score) + "    Length: " + str(snake.length),
+            sc = font_md.render("Base Score: " + str(score) + "    Bonus: +" + str(bonus_points_total),
                                 True, (200, 200, 210))
             screen.blit(sc, (W//2 - sc.get_width()//2, H//2 - 25))
 
-            bonus_txt = font_sm.render("Bonus Points: +" + str(bonus_points_total) +
-                                       "    Bonus Moves Left: " + str(bonus_moves_left),
+            bonus_txt = font_sm.render("Final Score: " + str(final_score) +
+                                       "    Length: " + str(snake.length),
                                        True, (155, 220, 170))
             screen.blit(bonus_txt, (W//2 - bonus_txt.get_width()//2, H//2 + 3))
 

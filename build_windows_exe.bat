@@ -1,59 +1,45 @@
 @echo off
-REM Windows Builder + Package Script for Linked List Snake
-REM This script creates a Windows standalone executable using PyInstaller
-REM Run this in Command Prompt or PowerShell
+setlocal
 
-echo =========================================
-echo Building Linked List Snake for Windows
-echo =========================================
-echo.
+set "SCRIPT_DIR=%~dp0"
+pushd "%SCRIPT_DIR%"
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo Error: Python is not installed or not in PATH
-    echo Please install Python from https://www.python.org/
-    echo Make sure to check "Add Python to PATH" during installation
-    pause
+set "VENV_PYINSTALLER=%SCRIPT_DIR%..\venv\Scripts\pyinstaller.exe"
+
+if not exist "%VENV_PYINSTALLER%" (
+    echo [ERROR] Could not find venv PyInstaller:
+    echo         %VENV_PYINSTALLER%
+    echo.
+    echo Create/setup the project venv first, then install dependencies.
+    popd
     exit /b 1
 )
 
-echo Step 1: Installing PyInstaller...
-pip install pyinstaller --upgrade -q
-if errorlevel 1 (
-    echo Error: Failed to install PyInstaller
-    pause
+if not exist "main_multiplayer.py" (
+    echo [ERROR] main_multiplayer.py not found in:
+    echo         %SCRIPT_DIR%
+    popd
     exit /b 1
 )
 
-echo Step 2: Cleaning previous builds...
-rmdir /s /q build dist *.spec 2>nul
-
-echo Step 3: Building executable with PyInstaller...
-pyinstaller ^
-    --name="Linked List Snake" ^
-    --onefile ^
-    --windowed ^
-    --hidden-import=pygame ^
-    --add-data="apple.png;." ^
-    --icon=snake-icon.ico ^
-    main.py
+echo Building Hizzz Snake EXE using project venv...
+"%VENV_PYINSTALLER%" --noconfirm --clean --onefile --windowed --name "Hizzz Snake" --hidden-import=pygame --add-data "apple.png;." --icon "snake_icon.ico" --distpath dist --workpath build main_multiplayer.py
 
 if errorlevel 1 (
-    echo Error: PyInstaller build failed
-    pause
+    echo.
+    echo [ERROR] Build failed.
+    popd
     exit /b 1
 )
 
-echo.
-echo =========================================
-echo Executable created successfully!
-echo Location: dist\Linked List Snake.exe
-echo =========================================
-echo.
-echo You can now:
-echo   1. Run the game: dist\Linked List Snake.exe
-echo   2. Distribute the .exe file to others (no installation needed)
-echo   3. Create a shortcut on your desktop
-echo.
-pause
+if exist "dist\Hizzz Snake.exe" (
+    echo.
+    echo [OK] Build complete:
+    echo      %SCRIPT_DIR%dist\Hizzz Snake.exe
+) else (
+    echo.
+    echo [WARN] Build command completed but EXE was not found at expected path.
+)
+
+popd
+exit /b 0
